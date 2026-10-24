@@ -1,0 +1,1 @@
+{"task": ":app:assembleDebug", "metadata": "app/build/outputs/apk/debug/output-metadata.json", "gradle": "9.7.0", "jdk": "21", "sdk": "37"}

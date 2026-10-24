@@ -1,0 +1,125 @@
+package me.rerere.fawntavern.domain
+
+import me.rerere.fawntavern.data.character.CharacterCard
+import me.rerere.fawntavern.data.api.ApiRequestSnapshot
+import me.rerere.fawntavern.data.chat.ChatMessage
+import me.rerere.fawntavern.data.chat.ChatSession
+import me.rerere.fawntavern.data.chat.MsgAlt
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class ConversationOpsTest {
+    @Test
+    fun newSessionPreservesGreetingMacrosForLiveRendering() {
+        val card = CharacterCard(
+            name = "Fawn",
+            firstMes = "Hello {{user}}, I am {{char}}.",
+        )
+
+        val session = ConversationOps.newSession(card, "fawn", "fallback")
+
+        assertEquals("Hello {{user}}, I am {{char}}.", session.messages.single().content)
+    }
+
+    @Test
+    fun switchingAltPersistsCurrentMirrorBeforeMoving() {
+        val message = ChatMessage(
+            role = "assistant",
+            content = "edited",
+            altIdx = 0,
+            alts = listOf(MsgAlt(content = "original"), MsgAlt(content = "second")),
+        )
+
+        val switched = ConversationOps.switchAltOne(message, 1)
+
+        requireNotNull(switched)
+        assertEquals(1, switched.altIdx)
+        assertEquals("edited", switched.alts[0].content)
+        assertEquals("second", switched.content)
+    }
+
+    @Test
+    fun switchingAltPreservesGeneratedImagesPerVersion() {
+        val message = ChatMessage(
+            role = "assistant",
+            images = listOf("attachments/first.png"),
+            imageAspectRatio = "16:9",
+            altIdx = 0,
+            alts = listOf(
+                MsgAlt(images = listOf("attachments/stale.png"), imageAspectRatio = "1:1"),
+                MsgAlt(images = listOf("attachments/second.png"), imageAspectRatio = "9:16"),
+            ),
+        )
+
+        val switched = ConversationOps.switchAltOne(message, 1)
+
+        requireNotNull(switched)
+        assertEquals(listOf("attachments/first.png"), switched.alts[0].images)
+        assertEquals("16:9", switched.alts[0].imageAspectRatio)
+        assertEquals(listOf("attachments/second.png"), switched.images)
+        assertEquals("9:16", switched.imageAspectRatio)
+    }
+
+    @Test
+    fun switchingAltPreservesRequestSnapshotsPerVersion() {
+        val first = ApiRequestSnapshot("https://example.com/first", "{\"version\":1}")
+        val second = ApiRequestSnapshot("https://example.com/second", "{\"version\":2}")
+        val message = ChatMessage(
+            role = "assistant",
+            requestSnapshots = listOf(first),
+            altIdx = 0,
+            alts = listOf(
+                MsgAlt(requestSnapshots = emptyList()),
+                MsgAlt(requestSnapshots = listOf(second)),
+            ),
+        )
+
+        val switched = ConversationOps.switchAltOne(message, 1)
+
+        requireNotNull(switched)
+        assertEquals(listOf(first), switched.alts[0].requestSnapshots)
+        assertEquals(listOf(second), switched.requestSnapshots)
+    }
+
+    @Test
+    fun deleteAltSelectsNearestVersionAndCollapsesLastVersion() {
+        val message = ChatMessage(
+            role = "assistant",
+            content = "second",
+            altIdx = 1,
+            alts = listOf(MsgAlt(content = "first"), MsgAlt(content = "second"), MsgAlt(content = "third")),
+        )
+
+        val afterDelete = ConversationOps.deleteAltOne(message)
+        requireNotNull(afterDelete)
+        assertEquals(1, afterDelete.altIdx)
+        assertEquals("third", afterDelete.content)
+
+        val collapsed = ConversationOps.deleteAltOne(
+            afterDelete.copy(altIdx = 0, content = "first", alts = listOf(MsgAlt(content = "first"), MsgAlt(content = "third"))),
+        )
+        requireNotNull(collapsed)
+        assertEquals(emptyList<MsgAlt>(), collapsed.alts)
+        assertEquals(0, collapsed.altIdx)
+    }
+
+    @Test
+    fun switchingAtBoundaryReturnsNoMutation() {
+        val message = ChatMessage(
+            role = "assistant",
+            content = "only",
+            alts = listOf(MsgAlt(content = "only"), MsgAlt(content = "other")),
+        )
+
+        assertNull(ConversationOps.switchAltOne(message, -1))
+        assertNull(ConversationOps.switchAltOne(message.copy(altIdx = 1, content = "other"), 1))
+    }
+
+    @Test
+    fun nextTsAlwaysFollowsExistingMessages() {
+        val session = ChatSession(messages = listOf(ChatMessage(role = "user", ts = 100L)))
+
+        assertEquals(true, ConversationOps.nextTs(session) > 100L)
+    }
+}

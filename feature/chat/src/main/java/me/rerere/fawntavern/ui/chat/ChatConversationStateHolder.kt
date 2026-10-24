@@ -1,0 +1,117 @@
+package me.rerere.fawntavern.ui.chat
+
+import android.graphics.Bitmap
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import me.rerere.fawntavern.data.chat.ChatMessage
+import me.rerere.fawntavern.data.chat.ChatSession
+import me.rerere.fawntavern.data.chat.MessageAlternatives
+import me.rerere.fawntavern.data.character.CharRegex
+import me.rerere.fawntavern.data.character.CharacterCard
+
+data class ChatConversationState(
+    val sessions: List<ChatSession>,
+    val current: ChatSession?,
+    val card: CharacterCard?,
+    val characterImage: Bitmap?,
+    val overlays: Map<Long, ChatMessage>,
+    val displayRegexScripts: List<CharRegex>,
+)
+
+/** 持有当前会话、会话摘要和尚未与分页数据对齐的消息覆盖层。 */
+class ChatConversationStateHolder {
+    var sessions by mutableStateOf<List<ChatSession>>(emptyList())
+        private set
+
+    var current by mutableStateOf<ChatSession?>(null)
+        private set
+
+    var overlays by mutableStateOf<Map<Long, ChatMessage>>(emptyMap())
+        private set
+
+    fun replaceSessions(values: List<ChatSession>) {
+        sessions = values
+    }
+
+    fun replaceCurrent(value: ChatSession?) {
+        if (current?.id != value?.id) overlays = emptyMap()
+        current = value
+    }
+
+    /** Keeps persisted session state lightweight; message bodies are owned by Paging. */
+    fun replacePersistedCurrent(value: ChatSession?) {
+        replaceCurrent(value?.let { session ->
+            if (session.messages.isEmpty()) session else session.copy(
+                messages = emptyList(),
+                totalMessageCount = session.messages.size,
+                messageTimestamps = session.messages.map(ChatMessage::ts),
+            )
+        })
+    }
+
+    fun updateCurrent(sessionId: String, transform: (ChatSession) -> ChatSession) {
+        val value = current ?: return
+        if (value.id == sessionId) current = transform(value)
+    }
+
+    fun putOverlay(message: ChatMessage) {
+        overlays = overlays + (message.ts to message)
+    }
+
+    fun switchAlternative(message: ChatMessage, direction: Int): ChatMessage? {
+        val source = overlays[message.ts] ?: message
+        val switched = MessageAlternatives.switch(source, direction) ?: return null
+        putOverlay(switched)
+        return switched
+    }
+
+    fun switchAlternative(timestamp: Long, direction: Int): ChatMessage? {
+        val message = overlays[timestamp]
+            ?: current?.messages?.firstOrNull { it.ts == timestamp }
+            ?: return null
+        return switchAlternative(message, direction)
+    }
+
+    fun removeOverlay(timestamp: Long) {
+        overlays = overlays - timestamp
+    }
+
+    fun reconcileOverlay(sessionId: String, timestamp: Long, message: ChatMessage?) {
+        if (current?.id != sessionId) return
+        overlays = if (message == null) overlays - timestamp else overlays + (timestamp to message)
+    }
+
+    fun retainOverlays(timestamps: Set<Long>) {
+        overlays = overlays.filterKeys { it in timestamps }
+    }
+
+    fun reconcileMessage(
+        sessionId: String,
+        timestamp: Long,
+        fresh: ChatSession,
+        expectedOverlay: ChatMessage? = null,
+    ) {
+        if (current?.id != sessionId) return
+        val currentOverlay = overlays[timestamp]
+        current = fresh.copy(
+            messages = emptyList(),
+            totalMessageCount = fresh.messages.size,
+            messageTimestamps = fresh.messages.map(ChatMessage::ts),
+        )
+        if (expectedOverlay != null && currentOverlay != expectedOverlay) return
+        val row = fresh.messages.firstOrNull { it.ts == timestamp }
+        overlays = if (row != null) overlays + (timestamp to row) else overlays - timestamp
+    }
+
+    fun reconcileMessage(
+        sessionId: String,
+        fresh: ChatMessage,
+        expectedOverlay: ChatMessage? = null,
+    ) {
+        if (current?.id != sessionId) return
+        val currentOverlay = overlays[fresh.ts]
+        if (expectedOverlay != null && currentOverlay != expectedOverlay) return
+        overlays = overlays + (fresh.ts to fresh)
+    }
+}
