@@ -28,11 +28,11 @@ val appVersionName = providers.gradleProperty("versionName")
     .orElse("0.1.0")
     .get()
 android {
-    namespace = "me.rerere.fawntavern"
+    namespace = "me.rerere.momoly"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "me.rerere.fawntavern"
+        applicationId = "me.rerere.momoly"
         minSdk = 26
         targetSdk = 37
         versionCode = appVersionCode

@@ -1,0 +1,110 @@
+package me.rerere.momoly.ui.components
+
+import me.rerere.momoly.data.api.ApiProvider
+import me.rerere.momoly.data.api.ModelInfo
+import me.rerere.momoly.data.api.ModelType
+import me.rerere.momoly.ui.api.replaceVisibleProviderOrder
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class ModelSelectorTest {
+    @Test
+    fun selectedModelPositionIncludesProviderHeadersAndEmptyGroups() {
+        val providers = listOf(
+            ApiProvider(id = "empty"),
+            ApiProvider(
+                id = "provider",
+                models = listOf(ModelInfo(id = "first"), ModelInfo(id = "selected")),
+            ),
+        )
+
+        assertEquals(4, selectedModelListPosition(providers, "provider::selected"))
+    }
+
+    @Test
+    fun missingSelectionHasNoTargetPosition() {
+        val providers = listOf(
+            ApiProvider(id = "provider", models = listOf(ModelInfo(id = "model"))),
+        )
+
+        assertNull(selectedModelListPosition(providers, "provider::missing"))
+    }
+
+    @Test
+    fun categoryReorderPreservesHiddenProviderPositions() {
+        val chat = ApiProvider(id = "chat")
+        val hidden = ApiProvider(id = "hidden")
+        val image = ApiProvider(id = "image")
+
+        val reordered = replaceVisibleProviderOrder(
+            all = listOf(chat, hidden, image),
+            reordered = listOf(image, chat),
+        )
+
+        assertEquals(listOf("image", "hidden", "chat"), reordered.map { it.id })
+    }
+
+    @Test
+    fun selectorOpensOnTheCurrentModelsCategory() {
+        val providers = listOf(
+            ApiProvider(
+                id = "provider",
+                models = listOf(
+                    ModelInfo(id = "chat", type = ModelType.CHAT),
+                    ModelInfo(id = "image", type = ModelType.IMAGE),
+                ),
+            ),
+        )
+
+        assertEquals(ModelType.IMAGE, modelTypeForSelection(providers, "provider::image"))
+        assertEquals(ModelType.CHAT, modelTypeForSelection(providers, "provider::missing"))
+    }
+
+    @Test
+    fun selectorOpensImageCategoryWhenOnlyImageModelsAreAvailable() {
+        val providers = listOf(
+            ApiProvider(
+                id = "image-provider",
+                models = listOf(ModelInfo(id = "image", type = ModelType.IMAGE)),
+            ),
+        )
+
+        assertEquals(ModelType.IMAGE, modelTypeForSelection(providers, ""))
+    }
+
+    @Test
+    fun selectorStillPrefersChatCategoryWhenBothCategoriesAreAvailable() {
+        val providers = listOf(
+            ApiProvider(
+                id = "image-provider",
+                models = listOf(ModelInfo(id = "image", type = ModelType.IMAGE)),
+            ),
+            ApiProvider(
+                id = "chat-provider",
+                models = listOf(ModelInfo(id = "chat", type = ModelType.CHAT)),
+            ),
+        )
+
+        assertEquals(ModelType.CHAT, modelTypeForSelection(providers, ""))
+    }
+
+    @Test
+    fun selectorCategoryKeepsOnlyProvidersWithMatchingModels() {
+        val providers = listOf(
+            ApiProvider(id = "chat", models = listOf(ModelInfo(id = "text"))),
+            ApiProvider(
+                id = "mixed",
+                models = listOf(
+                    ModelInfo(id = "text"),
+                    ModelInfo(id = "image", type = ModelType.IMAGE),
+                ),
+            ),
+        )
+
+        val imageProviders = providersForModelType(providers, ModelType.IMAGE)
+
+        assertEquals(listOf("mixed"), imageProviders.map { it.id })
+        assertEquals(listOf("image"), imageProviders.single().models.map { it.id })
+    }
+}

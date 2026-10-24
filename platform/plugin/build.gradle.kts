@@ -1,5 +1,5 @@
 plugins {
-    id("fawntavern.android.library")
+    id("momoly.android.library")
 }
 
 val appVersionName = providers.gradleProperty("versionName")
@@ -8,7 +8,7 @@ val appVersionName = providers.gradleProperty("versionName")
     .get()
 
 android {
-    namespace = "me.rerere.fawntavern.platform.plugin"
+    namespace = "me.rerere.momoly.platform.plugin"
     defaultConfig {
         buildConfigField("String", "APP_VERSION", "\"${appVersionName.replace("\"", "\\\"")}\"")
     }

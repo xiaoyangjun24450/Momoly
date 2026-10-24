@@ -24,7 +24,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "fawntavern"
+rootProject.name = "momoly"
 include(":app")
 include(":core:diagnostics")
 include(":core:model")

@@ -4,7 +4,7 @@
 
 ## 项目
 
-FawnTavern 是一款轻量 AI 角色扮演聊天的 Android 客户端（Kotlin + Jetpack Compose，Material 3）。支持导入 SillyTavern 兼容的角色卡、预设和世界书，可对接多种大模型API，随时随地与喜欢的角色进行聊天。包名：`me.rerere.fawntavern`。
+Momoly 是一款轻量 AI 角色扮演聊天的 Android 客户端（Kotlin + Jetpack Compose，Material 3）。支持导入 SillyTavern 兼容的角色卡、预设和世界书，可对接多种大模型API，随时随地与喜欢的角色进行聊天。包名：`me.rerere.momoly`。
 
 ## 常用命令
 
@@ -39,7 +39,7 @@ FawnTavern 是一款轻量 AI 角色扮演聊天的 Android 客户端（Kotlin +
 
 **Feature 已完成首轮物理拆分。** `:feature:chat` 持有 ViewModel、UDF 契约、状态持有者、生成编排和聊天用例；`:feature:character`、`:feature:preset`、`:feature:worldbook` 持有各自 Controller、DataSource 契约、编辑 reducer 和保存协调器。Composable Screen 与根导航仍由 `app` 承载，以复用现有资源和公共组件。Feature 主源码不得引用 app 资源、Store、Repository 实现、搜索实现或插件运行时。
 
-**依赖由 `di/AppContainer.kt` 手工装配，不使用 Hilt；HTTP 直接用 OkHttp。** `FawnTavernApplication` 持有容器，页面 Controller 由 `AppFeatureControllers` 统一创建并通过 `LocalAppContainer` 提供给 Compose；`ChatViewModelFactory` 注入按 session/generation/platform 分组的 `ChatFeatureDependencies`。模块方向为 `app → feature → domain/core`，数据实现位于 `data:*`；`:core:extension` 存放无 Android 依赖的扩展与 Host capability 契约，QuickJS 留在 `:platform:plugin`，模型调用、默认模型与会话状态能力由 `app` 实现。根任务 `checkArchitecture` 检查禁止依赖并作为 CI 发布门槛。协议无关且跨生成/网络边界使用的值对象位于 `:core:model`（当前为减少迁移噪音暂时保留原包名）；该模块不得包含 API Key、base URL、供应商自定义请求字段或 Android 存储实现。`ApiProvider`、`ModelInfo` 等网络配置仍归 `:core:network`，完整供应商配置只在 `AndroidGenerationGateway` 根据 `providerId` 解析，不进入 `GenerationEngine`。
+**依赖由 `di/AppContainer.kt` 手工装配，不使用 Hilt；HTTP 直接用 OkHttp。** `MomolyApplication` 持有容器，页面 Controller 由 `AppFeatureControllers` 统一创建并通过 `LocalAppContainer` 提供给 Compose；`ChatViewModelFactory` 注入按 session/generation/platform 分组的 `ChatFeatureDependencies`。模块方向为 `app → feature → domain/core`，数据实现位于 `data:*`；`:core:extension` 存放无 Android 依赖的扩展与 Host capability 契约，QuickJS 留在 `:platform:plugin`，模型调用、默认模型与会话状态能力由 `app` 实现。根任务 `checkArchitecture` 检查禁止依赖并作为 CI 发布门槛。协议无关且跨生成/网络边界使用的值对象位于 `:core:model`（当前为减少迁移噪音暂时保留原包名）；该模块不得包含 API Key、base URL、供应商自定义请求字段或 Android 存储实现。`ApiProvider`、`ModelInfo` 等网络配置仍归 `:core:network`，完整供应商配置只在 `AndroidGenerationGateway` 根据 `providerId` 解析，不进入 `GenerationEngine`。
 
 - `*Store` 对象 — 通用偏好、安全存储和 `ApiConfigRepository` 实现位于 `:data:settings`；依赖搜索/TTS 运行时的复杂 Store 暂留 `app`。API、搜索和 TTS 配置以 `schema_version=1` 为持久化基线，可移植备份带 `formatVersion`；以后修改结构必须保留旧版本解析或显式迁移，损坏数据恢复默认值并提示。
 - `*Repository` 对象（`data/character`、`data/preset`、`data/worldbook`）— 每个条目对应 `filesDir` 子目录下的一个 JSON 文件，每个领域配有对应的 `*Parser` 和 `*Models` 文件。Repository 提供 `load/save/import/delete/rename/clear` 等挂起函数；目录/文件级共用操作抽在 `data/JsonFileDir`。UI 页面不直接访问 Repository、SharedPreferences 或目录：搜索通过 `ChatSearchController`，数据统计/清理/备份通过 `DataManagementController`；Android 数据源实现负责连接实际存储。

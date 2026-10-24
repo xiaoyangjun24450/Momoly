@@ -1,0 +1,26 @@
+package me.rerere.momoly.ui.preset
+
+import android.content.Context
+import android.net.Uri
+import me.rerere.momoly.R
+import me.rerere.momoly.data.character.CharacterRepository
+import me.rerere.momoly.data.preset.PresetRepository
+import me.rerere.momoly.data.preset.RegexScript
+import me.rerere.momoly.data.preset.StPreset
+
+internal class AndroidPresetDataSource(
+    private val context: Context,
+) : PresetDataSource {
+    override fun defaultName(): String? = PresetRepository.defaultPresetName(context)
+    override suspend fun names(): List<String> {
+        PresetRepository.ensureDefaultPreset(context, context.getString(R.string.default_preset))
+        return PresetRepository.listNames(context)
+    }
+    override suspend fun load(name: String): StPreset = PresetRepository.load(context, name)
+    override suspend fun create(name: String): StPreset = PresetRepository.create(context, name)
+    override suspend fun import(source: Uri): StPreset = PresetRepository.import(context, source)
+    override suspend fun rename(old: String, new: String): Boolean = PresetRepository.rename(context, old, new)
+    override suspend fun delete(key: String) = CharacterRepository.deletePreset(context, key)
+    override suspend fun save(preset: StPreset) = PresetRepository.save(context, preset)
+    override suspend fun parseRegex(uri: Uri): RegexScript = PresetRepository.parseRegexUri(context, uri)
+}

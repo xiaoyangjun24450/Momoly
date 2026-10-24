@@ -1,0 +1,207 @@
+package me.rerere.momoly.ui.api
+
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Plus
+import kotlinx.coroutines.launch
+import me.rerere.momoly.R
+import me.rerere.momoly.di.LocalAppContainer
+import me.rerere.momoly.data.api.ApiProvider
+import me.rerere.momoly.data.api.ModelType
+import me.rerere.momoly.ui.components.AppTopBar
+import me.rerere.momoly.ui.components.PageTransition
+import me.rerere.momoly.ui.components.Space12
+import me.rerere.momoly.ui.components.rememberReorderableList
+import sh.calvin.reorderable.ReorderableItem
+
+@Composable
+fun ApiConfigScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val controller = LocalAppContainer.current.features.apiConfig
+    val initial = remember(controller) { controller.load() }
+    var config by remember(controller) { mutableStateOf(initial.config) }
+    val configWasRecovered = initial.recovered
+    val configRecoveredMessage = stringResource(R.string.api_config_recovered)
+    LaunchedEffect(configWasRecovered) {
+        if (configWasRecovered) {
+            Toast.makeText(context, configRecoveredMessage, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // 每次落盘都校正选中模型：禁用/删除提供商、移除模型后不留悬空选择
+    fun save() {
+        config = controller.save(config)
+    }
+
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var addingProvider by remember { mutableStateOf<ApiProvider?>(null) }
+    val modelTypes = listOf(ModelType.CHAT, ModelType.IMAGE)
+    val pagerState = rememberPagerState(pageCount = { modelTypes.size })
+    val coroutineScope = rememberCoroutineScope()
+    // SaveableStateHolder：进入详情页时列表离开组合，其 LazyListState 被暂存；
+    // 返回时恢复，避免列表滚动位置丢失（跳回顶部）。
+    val stateHolder = rememberSaveableStateHolder()
+
+    PageTransition(
+        targetState = editingId to addingProvider,
+        depth = { (id, draft) -> if (id != null || draft != null) 1 else 0 },
+        contentKey = { (id, draft) -> id?.let { "edit:$it" } ?: draft?.let { "add:${it.id}" } ?: "list" },
+    ) { (selectedId, draftProvider) ->
+    if (selectedId != null) {
+        val selectedProvider = config.providers.find { it.id == selectedId }
+        if (selectedProvider == null) {
+            LaunchedEffect(selectedId) { if (editingId == selectedId) editingId = null }
+        } else {
+            key("edit:${selectedProvider.id}") {
+                BackHandler { editingId = null }
+                ProviderDetailScreen(
+                    provider = selectedProvider,
+                    isNew = false,
+                    onBack = { editingId = null },
+                    onSave = { updated ->
+                        config = config.copy(providers = config.providers.map { if (it.id == updated.id) updated else it })
+                        save()
+                        Toast.makeText(context, resources.getString(R.string.saved), Toast.LENGTH_SHORT).show()
+                    },
+                    onDelete = {
+                        config = config.copy(providers = config.providers.filter { it.id != selectedProvider.id })
+                        save()
+                        editingId = null
+                    },
+                    onChange = { updated ->
+                        config = config.copy(providers = config.providers.map { if (it.id == updated.id) updated else it })
+                        save()
+                    },
+                )
+            }
+        }
+        return@PageTransition
+    }
+
+    if (draftProvider != null) {
+        key("add:${draftProvider.id}") {
+            ProviderDetailScreen(
+                provider = draftProvider,
+                isNew = true,
+                onBack = { addingProvider = null },
+                onSave = { newProv ->
+                    config = config.copy(providers = config.providers + newProv)
+                    save()
+                    Toast.makeText(context, resources.getString(R.string.saved), Toast.LENGTH_SHORT).show()
+                    addingProvider = null
+                    editingId = newProv.id
+                },
+                onDelete = { addingProvider = null },
+            )
+        }
+        return@PageTransition
+    }
+
+    stateHolder.SaveableStateProvider("list") {
+        BackHandler(onBack = onBack)
+
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                Column {
+                    AppTopBar(stringResource(R.string.api_config), onBack)
+                    PrimaryScrollableTabRow(
+                        selectedTabIndex = pagerState.currentPage,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        edgePadding = 16.dp,
+                    ) {
+                        val tabs = listOf(
+                            stringResource(R.string.chat_models_tab),
+                            stringResource(R.string.image_models_tab),
+                        )
+                        tabs.forEachIndexed { index, title ->
+                            Tab(
+                                selected = index == pagerState.currentPage,
+                                onClick = {
+                                    coroutineScope.launch { pagerState.animateScrollToPage(index) }
+                                },
+                            ) {
+                                Text(
+                                    title,
+                                    Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = { addingProvider = ApiProvider() }) {
+                    Icon(Lucide.Plus, stringResource(R.string.add_provider), Modifier.size(24.dp))
+                }
+            },
+        ) { padding ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize().padding(padding),
+                key = { modelTypes[it] },
+                overscrollEffect = null,
+            ) { page ->
+                val selectedModelType = modelTypes[page]
+                val visibleProviders = config.providers.filter { provider ->
+                    if (selectedModelType == ModelType.IMAGE) provider.type == "gradio"
+                    else provider.type != "gradio"
+                }
+                // Tab 只是同一份 provider 配置的任务视图；混合提供商仍共享地址和密钥。
+                val (listState, reorderState) = rememberReorderableList(
+                    items = visibleProviders,
+                    keyOf = { it.id },
+                ) { list ->
+                    config = config.copy(providers = replaceVisibleProviderOrder(config.providers, list))
+                    save()
+                }
+
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(Space12),
+                ) {
+                    if (visibleProviders.isEmpty() && selectedModelType == ModelType.CHAT) {
+                        item {
+                            Box(Modifier.fillParentMaxHeight(0.7f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Text(stringResource(R.string.no_api_providers), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    itemsIndexed(visibleProviders, key = { _, provider -> provider.id }) { _, prov ->
+                        ReorderableItem(reorderState, key = prov.id) { dragging ->
+                            ProviderCard(
+                                prov = prov,
+                                modelCount = prov.models.size,
+                                onClick = { editingId = prov.id },
+                                dragging = dragging,
+                                modifier = Modifier.longPressDraggableHandle(),
+                            )
+                        }
+                    }
+                    item { Spacer(Modifier.height(80.dp)) }
+                }
+            }
+        }
+    }
+    }
+}

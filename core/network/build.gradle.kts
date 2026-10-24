@@ -1,10 +1,10 @@
 plugins {
-    id("fawntavern.android.library")
+    id("momoly.android.library")
     alias(libs.plugins.kotlin.serialization)
 }
 
 android {
-    namespace = "me.rerere.fawntavern.core.network"
+    namespace = "me.rerere.momoly.core.network"
 }
 
 dependencies {

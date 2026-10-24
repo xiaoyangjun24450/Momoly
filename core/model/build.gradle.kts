@@ -1,5 +1,5 @@
 plugins {
-    id("fawntavern.kotlin.library")
+    id("momoly.kotlin.library")
     alias(libs.plugins.kotlin.serialization)
 }
 

@@ -1,11 +1,11 @@
 plugins {
-    id("fawntavern.android.library")
+    id("momoly.android.library")
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
 
 android {
-    namespace = "me.rerere.fawntavern.data.chat"
+    namespace = "me.rerere.momoly.data.chat"
 }
 
 dependencies {

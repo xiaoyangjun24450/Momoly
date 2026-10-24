@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">FawnTavern</string>
+    <string name="app_name">Momoly</string>
 
     <!-- Common -->
     <string name="back">Back</string>
@@ -70,7 +70,7 @@
     <string name="about_system">System</string>
     <string name="about_system_value">%1$s · Android %2$s (API %3$d)</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value">weiruchenai1/fawntavern</string>
+    <string name="about_github_value">weiruchenai1/momoly</string>
     <string name="about_license">License</string>
     <string name="about_license_value">GNU AGPL v3.0</string>
     <string name="privacy_documents">Privacy &amp; agreements</string>
@@ -93,7 +93,7 @@
     <string name="system_log">System Log</string>
     <string name="system_log_empty">No system logs</string>
     <plurals name="system_log_entry_count"><item quantity="one">%1$d entry</item><item quantity="other">%1$d entries</item></plurals>
-    <string name="system_log_share_subject">FawnTavern safe system log</string>
+    <string name="system_log_share_subject">Momoly safe system log</string>
     <string name="system_log_share_failed">Unable to create the system log file</string>
     <string name="log_level_error">Error</string>
     <string name="log_level_warning">Warning</string>
@@ -828,7 +828,7 @@
     <string name="crash_feedback_remote_summary">Information that may be uploaded: device identifiers, device and system information, IP address, app version, build type, app start events, crash stack traces, runtime state, and diagnostic logs. Chat content, attachments, and API keys are not intentionally uploaded.</string>
     <string name="crash_feedback_empty">No crash reports</string>
     <string name="crash_feedback_share">Share</string>
-    <string name="crash_feedback_subject">FawnTavern crash report</string>
+    <string name="crash_feedback_subject">Momoly crash report</string>
     <string name="crash_feedback_clear_title">Clear crash report</string>
     <string name="crash_feedback_clear_message">Clear the current crash report? This action cannot be undone.</string>
     <string name="crash_feedback_share_failed">Unable to create the crash report file</string>

@@ -1,6 +1,6 @@
 # 在 XYJ 工作区开发
 
-本目录是独立 Git 仓库，origin 为 `git@github.com:weiruchenai1/fawntavern.git`，适配基线为 `31820a8`（`main`）。保留原源码、历史、模块结构、依赖版本与远程；宿主不跟踪本目录，提交和推送在本仓库内进行。
+本目录是独立 Git 仓库，origin 为 `git@github.com:weiruchenai1/momoly.git`。保留原有源码、模块结构、依赖版本与远程；宿主不跟踪本目录，提交和推送在本仓库内进行。
 
 ## 工具链
 
@@ -32,7 +32,7 @@
 
 - 产物：`app/build/outputs/apk/debug/`。debug 开启 ABI 拆分，输出 `arm64-v8a` 与 `x86_64` 两个 APK，`output-metadata.json` 记录二者。
 - 安装时按已连接设备的 `ro.product.cpu.abi` 选择对应 APK；设备不匹配或未连接时需要显式 `-Abi arm64-v8a` / `-Abi x86_64`，脚本不会把两个 APK 混装。
-- debug 包名为 `me.rerere.fawntavern.debug`，与 release 共存，数据目录独立。
+- debug 包名为 `me.rerere.momoly.debug`，与 release 共存，数据目录独立。
 - `local.properties` 由入口写入，只替换 `sdk.dir` 并保留其他键；已被本仓库忽略。
 - `keystore.properties`、`google-services.json`、`BUGLY_APP_ID` 不入库：缺失时 debug 可编译；release 保持未签名，Firebase/Bugly 上报与 CI 发布流程不在本工作区验证范围。
 

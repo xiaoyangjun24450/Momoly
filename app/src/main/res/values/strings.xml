@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">FawnTavern</string>
+    <string name="app_name">Momoly</string>
 
     <!-- Common -->
     <string name="back">返回</string>
@@ -70,7 +70,7 @@
     <string name="about_system">系统</string>
     <string name="about_system_value">%1$s · Android %2$s（API %3$d）</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_value">weiruchenai1/fawntavern</string>
+    <string name="about_github_value">weiruchenai1/momoly</string>
     <string name="about_license">许可证</string>
     <string name="about_license_value">GNU AGPL v3.0</string>
     <string name="privacy_documents">隐私与协议</string>
@@ -93,7 +93,7 @@
     <string name="system_log">系统日志</string>
     <string name="system_log_empty">暂无系统日志</string>
     <plurals name="system_log_entry_count"><item quantity="other">共 %1$d 条记录</item></plurals>
-    <string name="system_log_share_subject">FawnTavern 安全系统日志</string>
+    <string name="system_log_share_subject">Momoly 安全系统日志</string>
     <string name="system_log_share_failed">无法创建系统日志文件</string>
     <string name="log_level_error">错误</string>
     <string name="log_level_warning">警告</string>
@@ -826,7 +826,7 @@
     <string name="crash_feedback_remote_summary">可能会上传的信息：设备标识、设备和系统信息、IP 地址、应用版本、构建类型、应用启动事件、崩溃堆栈、运行状态及诊断日志。不会主动上传聊天正文、附件内容或 API 密钥。</string>
     <string name="crash_feedback_empty">暂无崩溃报告</string>
     <string name="crash_feedback_share">分享</string>
-    <string name="crash_feedback_subject">FawnTavern 崩溃报告</string>
+    <string name="crash_feedback_subject">Momoly 崩溃报告</string>
     <string name="crash_feedback_clear_title">清除崩溃报告</string>
     <string name="crash_feedback_clear_message">确定要清除当前崩溃报告吗？此操作不可撤销。</string>
     <string name="crash_feedback_share_failed">无法创建崩溃报告文件</string>

@@ -19,4 +19,4 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "fawntavern-build-logic"
+rootProject.name = "momoly-build-logic"

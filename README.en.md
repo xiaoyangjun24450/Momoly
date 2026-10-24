@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="./logo.svg" width="96" alt="FawnTavern" />
-  <h1>FawnTavern</h1>
+  <img src="./logo.svg" width="96" alt="Momoly" />
+  <h1>Momoly</h1>
   <p>A lightweight, modern AI role-playing chat client for Android</p>
 
   <p><a href="./README.md">简体中文</a> | <strong>English</strong></p>
@@ -11,7 +11,7 @@
   </p>
 </div>
 
-FawnTavern is a lightweight AI role-playing chat client. It imports SillyTavern-compatible character cards, presets, and world books, connects to multiple LLM APIs, and lets you chat with your favorite characters anytime, anywhere.
+Momoly is a lightweight AI role-playing chat client. It imports SillyTavern-compatible character cards, presets, and world books, connects to multiple LLM APIs, and lets you chat with your favorite characters anytime, anywhere.
 
 ## Screenshots
 
@@ -34,21 +34,21 @@ FawnTavern is a lightweight AI role-playing chat client. It imports SillyTavern-
 
 ## Download
 
-Download the latest version from [GitHub Releases](https://github.com/weiruchenai1/fawntavern/releases).
+Download the latest version from [GitHub Releases](https://github.com/weiruchenai1/momoly/releases).
 
 | Package | Intended devices |
 | --- | --- |
-| `FawnTavern-<version>-arm64-v8a.apk` | Most modern Android phones and tablets |
-| `FawnTavern-<version>-x86_64.apk` | x86_64 Android emulators and some Chromebooks |
+| `Momoly-<version>-arm64-v8a.apk` | Most modern Android phones and tablets |
+| `Momoly-<version>-x86_64.apk` | x86_64 Android emulators and some Chromebooks |
 
-Most phones should use `arm64-v8a`. FawnTavern does not publish packages through third-party download sites. Verify downloads against the SHA-256 checksum file on the Release page.
+Most phones should use `arm64-v8a`. Momoly does not publish packages through third-party download sites. Verify downloads against the SHA-256 checksum file on the Release page.
 
 ## Requirements
 
 - Android 8.0 (API 26) or newer
 - An `arm64-v8a` or `x86_64` device
 - A network connection for online models, web search, and update checks
-- Your own API service and quota; FawnTavern does not include model usage credits
+- Your own API service and quota; Momoly does not include model usage credits
 
 ## Privacy and data
 
@@ -59,7 +59,7 @@ Most phones should use `arm64-v8a`. FawnTavern does not publish packages through
 
 ## Information Collection Disclosure
 
-FawnTavern runs no backend of its own. Conversations, character cards, presets, world books, and attachments are stored locally by default. Apart from the cases below, the app does not collect or upload any data:
+Momoly runs no backend of its own. Conversations, character cards, presets, world books, and attachments are stored locally by default. Apart from the cases below, the app does not collect or upload any data:
 
 - **Model, TTS, and image services**: When you initiate a request, the text, context, attachments, parameters, and credentials required for that request are sent to the provider you configured.
 - **Web search**: When web search is enabled, search queries are sent to the search provider you configure.
@@ -75,11 +75,11 @@ This application is intended for learning and entertainment. AI-generated conten
 
 Development requires JDK 17 and an Android SDK that supports `compileSdk 37`.
 
-Inside the XYJ workspace (`apps/fawntavern/`), use the host entry scripts instead; see [WINDOWS_WORKSPACE.md](./WINDOWS_WORKSPACE.md) for the toolchain and commands.
+Inside the XYJ workspace (`apps/momoly/`), use the host entry scripts instead; see [WINDOWS_WORKSPACE.md](./WINDOWS_WORKSPACE.md) for the toolchain and commands.
 
 ```powershell
-git clone https://github.com/weiruchenai1/fawntavern.git
-cd fawntavern
+git clone https://github.com/weiruchenai1/momoly.git
+cd momoly
 .\gradlew.bat assembleDebug
 ```
 

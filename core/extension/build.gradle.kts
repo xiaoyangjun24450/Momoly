@@ -1,9 +1,9 @@
 plugins {
-    id("fawntavern.android.library")
+    id("momoly.android.library")
 }
 
 android {
-    namespace = "me.rerere.fawntavern.core.extension"
+    namespace = "me.rerere.momoly.core.extension"
 }
 
 dependencies {

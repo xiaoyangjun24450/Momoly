@@ -1,0 +1,139 @@
+package me.rerere.momoly.ui.preset
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.FileJson
+import com.composables.icons.lucide.Lucide
+import me.rerere.momoly.R
+import me.rerere.momoly.di.LocalAppContainer
+import me.rerere.momoly.data.preset.StPreset
+import me.rerere.momoly.ui.components.ImportableListScreen
+import me.rerere.momoly.ui.components.ImportableListState
+import me.rerere.momoly.ui.components.ResourceEditorRoute
+import me.rerere.momoly.ui.components.PageTransition
+import me.rerere.momoly.ui.components.CreateItemSpec
+import me.rerere.momoly.ui.components.Space16
+import me.rerere.momoly.ui.components.appClickable
+
+@Composable
+fun PresetListScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val controller = LocalAppContainer.current.features.presets
+    val listState = remember(controller) { ImportableListState<StPreset>() }
+    var selectedName by rememberSaveable { mutableStateOf<String?>(null) }
+    // SaveableStateHolder：进入编辑器时列表离开组合，其 LazyListState 被暂存；
+    // 返回时恢复，避免列表滚动位置丢失（跳回顶部）。
+    val stateHolder = rememberSaveableStateHolder()
+
+    PageTransition(targetState = selectedName) { selected ->
+    if (selected != null) {
+        ResourceEditorRoute(selected, controller::load, onBack = { selectedName = null }) { preset ->
+            PresetEditorScreen(preset = preset, onBack = { selectedName = null })
+        }
+        return@PageTransition
+    }
+
+    stateHolder.SaveableStateProvider("list") {
+        BackHandler(onBack = onBack)
+
+        ImportableListScreen(
+        titleRes = R.string.presets,
+        onBack = onBack,
+        importMimeType = "application/json",
+        emptyIcon = Lucide.FileJson,
+        emptyTitleRes = R.string.no_presets_title,
+        emptyDescRes = R.string.no_presets_desc,
+        renameLabelRes = R.string.toast_rename_preset_label,
+        deleteTitleRes = R.string.delete_preset_title,
+        deleteMsgFmtRes = R.string.delete_preset_msg_fmt,
+        controller = controller,
+        listState = listState,
+        onOpen = { selectedName = it.name },
+        canDeleteItem = { !controller.isDefault(it) },
+        createItem = CreateItemSpec(
+            titleRes = R.string.add_preset,
+            nameLabelRes = R.string.preset_name_label,
+            importLabelRes = R.string.import_preset,
+            createdToastRes = R.string.preset_created,
+            create = { controller.create(it) },
+        ),
+        itemCard = { name, p, onClick, onLongPress ->
+            PresetCard(
+                name = name,
+                model = p.openaiModel.ifBlank { p.claudeModel.ifBlank { p.googleModel } },
+                promptCount = p.prompts.size,
+                onClick = onClick,
+                onLongPress = onLongPress,
+            )
+        },
+    )
+    } // SaveableStateProvider("list")
+    }
+}
+
+@Composable
+private fun PresetCard(
+    name: String,
+    model: String,
+    promptCount: Int,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+) {
+    val summary = buildString {
+        if (model.isNotBlank()) append(model)
+        if (promptCount > 0) {
+            if (model.isNotBlank()) append(" · ")
+            append(androidx.compose.ui.res.pluralStringResource(R.plurals.prompts_count_fmt, promptCount, promptCount))
+        }
+    }
+
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .appClickable(onClick = onClick, onLongClick = onLongPress)
+            .padding(Space16),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(name, style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (summary.isNotBlank()) {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Icon(Lucide.ChevronRight, null, Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.outline)
+    }
+}

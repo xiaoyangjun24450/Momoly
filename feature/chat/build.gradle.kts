@@ -1,9 +1,9 @@
 plugins {
-    id("fawntavern.android.library")
+    id("momoly.android.library")
 }
 
 android {
-    namespace = "me.rerere.fawntavern.feature.chat"
+    namespace = "me.rerere.momoly.feature.chat"
 }
 
 dependencies {

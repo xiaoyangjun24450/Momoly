@@ -1,5 +1,5 @@
 plugins {
-    id("fawntavern.android.library")
+    id("momoly.android.library")
 }
 
 val appVersionName = providers.gradleProperty("versionName")
@@ -15,7 +15,7 @@ fun buildConfigString(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 android {
-    namespace = "me.rerere.fawntavern.platform.diagnostics"
+    namespace = "me.rerere.momoly.platform.diagnostics"
     defaultConfig {
         buildConfigField("String", "VERSION_NAME", buildConfigString(appVersionName))
         buildConfigField("String", "BUGLY_APP_ID", buildConfigString(buglyAppId))

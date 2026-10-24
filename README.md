@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="./logo.svg" width="96" alt="FawnTavern" />
-  <h1>FawnTavern</h1>
+  <img src="./logo.svg" width="96" alt="Momoly" />
+  <h1>Momoly</h1>
   <p>轻量、现代的 Android AI 角色扮演聊天客户端</p>
 
   <p><strong>简体中文</strong> | <a href="./README.en.md">English</a></p>
@@ -11,7 +11,7 @@
   </p>
 </div>
 
-FawnTavern 是一款轻量的 AI 角色扮演聊天客户端。支持导入 SillyTavern 兼容的角色卡、预设和世界书，可连接多种大模型 API，随时随地与喜欢的角色聊天。
+Momoly 是一款轻量的 AI 角色扮演聊天客户端。支持导入 SillyTavern 兼容的角色卡、预设和世界书，可连接多种大模型 API，随时随地与喜欢的角色聊天。
 
 ## 截图
 
@@ -34,12 +34,12 @@ FawnTavern 是一款轻量的 AI 角色扮演聊天客户端。支持导入 Sill
 
 ## 下载
 
-前往 [GitHub Releases](https://github.com/weiruchenai1/fawntavern/releases) 下载最新版本。
+前往 [GitHub Releases](https://github.com/weiruchenai1/momoly/releases) 下载最新版本。
 
 | 安装包 | 适用设备 |
 | --- | --- |
-| `FawnTavern-<版本号>-arm64-v8a.apk` | 绝大多数现代 Android 手机和平板 |
-| `FawnTavern-<版本号>-x86_64.apk` | x86_64 Android 模拟器和部分 Chromebook |
+| `Momoly-<版本号>-arm64-v8a.apk` | 绝大多数现代 Android 手机和平板 |
+| `Momoly-<版本号>-x86_64.apk` | x86_64 Android 模拟器和部分 Chromebook |
 
 普通手机通常选择 `arm64-v8a`。应用不提供来自第三方下载站的安装包，请核对 Release 页面中的 SHA-256 校验文件。
 
@@ -48,7 +48,7 @@ FawnTavern 是一款轻量的 AI 角色扮演聊天客户端。支持导入 Sill
 - Android 8.0（API 26）或更高版本
 - `arm64-v8a` 或 `x86_64` 设备
 - 使用在线模型、联网搜索和更新检查时需要网络连接
-- FawnTavern 本身不提供大模型额度，需要使用你自己的 API 服务
+- Momoly 本身不提供大模型额度，需要使用你自己的 API 服务
 
 ## 隐私与数据
 
@@ -59,7 +59,7 @@ FawnTavern 是一款轻量的 AI 角色扮演聊天客户端。支持导入 Sill
 
 ## 信息收集披露
 
-FawnTavern 没有自建服务端，聊天记录、角色卡、预设、世界书和附件默认只保存在设备本地。除下列情况外，应用不会收集或上传任何数据：
+Momoly 没有自建服务端，聊天记录、角色卡、预设、世界书和附件默认只保存在设备本地。除下列情况外，应用不会收集或上传任何数据：
 
 - **模型、TTS 与图片服务**：你主动发起请求时，完成请求所需的文本、上下文、附件、参数和凭据会发送到你自行配置的服务商。
 - **联网搜索**：开启联网搜索后，搜索关键词会发送到你配置的搜索服务商。
@@ -75,11 +75,11 @@ FawnTavern 没有自建服务端，聊天记录、角色卡、预设、世界书
 
 开发环境需要 JDK 17，以及支持 `compileSdk 37` 的 Android SDK。
 
-在 XYJ 工作区（`apps/fawntavern/`）开发时改用宿主入口脚本，工具链与命令见 [WINDOWS_WORKSPACE.md](./WINDOWS_WORKSPACE.md)。
+在 XYJ 工作区（`apps/momoly/`）开发时改用宿主入口脚本，工具链与命令见 [WINDOWS_WORKSPACE.md](./WINDOWS_WORKSPACE.md)。
 
 ```powershell
-git clone https://github.com/weiruchenai1/fawntavern.git
-cd fawntavern
+git clone https://github.com/weiruchenai1/momoly.git
+cd momoly
 .\gradlew.bat assembleDebug
 ```
 

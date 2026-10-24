@@ -149,8 +149,8 @@ jobs:
           test -n "$ARM64_SOURCE"
           test -n "$X86_64_SOURCE"
 
-          ARM64_APK="app/build/outputs/apk/release/FawnTavern-${VERSION_NAME}-arm64-v8a.apk"
-          X86_64_APK="app/build/outputs/apk/release/FawnTavern-${VERSION_NAME}-x86_64.apk"
+          ARM64_APK="app/build/outputs/apk/release/Momoly-${VERSION_NAME}-arm64-v8a.apk"
+          X86_64_APK="app/build/outputs/apk/release/Momoly-${VERSION_NAME}-x86_64.apk"
           mv "$ARM64_SOURCE" "$ARM64_APK"
           mv "$X86_64_SOURCE" "$X86_64_APK"
           echo "ARM64_APK=$ARM64_APK" >> "$GITHUB_ENV"
@@ -163,7 +163,7 @@ jobs:
       - name: Upload build records
         uses: actions/upload-artifact@v7
         with:
-          name: fawntavern-${{ github.ref_name }}-build-records
+          name: momoly-${{ github.ref_name }}-build-records
           path: |
             ${{ env.ARM64_APK }}
             ${{ env.X86_64_APK }}

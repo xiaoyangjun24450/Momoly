@@ -395,7 +395,7 @@
     var scope = templateScope(opts, 'chat');
     if (scope === 'cache') scope = 'chat';
     replaceVariables(value, Object.assign({}, templateMessageOptions(opts, scope), { type: scope })).catch(function (error) {
-      console.warn('[FawnTavern] failed to persist prompt-template variables', error);
+      console.warn('[Momoly] failed to persist prompt-template variables', error);
     });
   }
 
