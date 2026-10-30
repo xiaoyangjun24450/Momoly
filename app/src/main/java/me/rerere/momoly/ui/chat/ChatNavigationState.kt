@@ -8,27 +8,15 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 
 /** 覆盖在聊天页之上的全屏页面。 */
 internal enum class ChatDestination {
-    Translator,
-    Statistics,
     Settings,
-    Presets,
-    Characters,
-    WorldBooks,
-    ApiConfig,
-    DataMgmt,
     FontSize,
-    Preferences,
-    Logs,
-    SystemLog,
-    PromptLog,
-    CrashReport,
-    Search,
-    Extensions,
-    About,
-    DefaultModel,
-    WebSearch,
+    Characters,
+    ApiConfig,
     Tts,
-    Regex,
+    About,
+    Search,
+    WebSearch,
+    Summarize,
 }
 
 private val ChatNavigationSaver = listSaver<SnapshotStateList<ChatDestination>, String>(

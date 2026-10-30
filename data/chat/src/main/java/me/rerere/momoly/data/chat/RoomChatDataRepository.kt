@@ -18,6 +18,8 @@ class RoomChatDataRepository(
         ChatRepository.messagesPaged(appContext, sessionId, initialKey)
 
     override suspend fun listSummaries() = ChatRepository.listSummaries(appContext)
+    override suspend fun latestMessagePreviews(sessionIds: List<String>) =
+        ChatRepository.latestMessagePreviews(appContext, sessionIds)
     override suspend fun searchMessages(characterFile: String, query: String, limit: Int) =
         ChatRepository.searchMessages(appContext, characterFile, query, limit).map {
             ChatDataRepository.SearchResult(it.sessionId, it.title, it.content)

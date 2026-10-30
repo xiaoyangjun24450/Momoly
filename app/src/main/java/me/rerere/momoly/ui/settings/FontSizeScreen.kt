@@ -74,7 +74,7 @@ fun FontSizeScreen(onBack: () -> Unit, currentScale: Float = 1.0f) {
         Column(
             Modifier.fillMaxSize().padding(padding),
         ) {
-            // 预览直接复用聊天页的 UserMsg / AIMsg，喂真实的用户名/头像/当前模型，
+            // 预览直接复用聊天页的 UserMsg / AIMsg，喂真实的头像与字号，
             // 保证与实际渲染（含展开思考、工具栏交互）永远一致，不再维护一份假组件
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState())
@@ -85,11 +85,7 @@ fun FontSizeScreen(onBack: () -> Unit, currentScale: Float = 1.0f) {
                 Text(stringResource(R.string.preview_effect), style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary)
 
-                val modelId = preview.modelSpec.substringAfter("::", "")
-                    .ifBlank { stringResource(R.string.no_model_selected) }
-
                 UserMsg(
-                    name = preview.userName,
                     text = stringResource(R.string.preview_user_text),
                     onCopy = {}, onRegenerate = {}, onMore = {},
                     scale = selectedScale,
@@ -101,12 +97,12 @@ fun FontSizeScreen(onBack: () -> Unit, currentScale: Float = 1.0f) {
                         role = "assistant",
                         content = stringResource(R.string.preview_ai_text),
                         reasoning = stringResource(R.string.preview_ai_reasoning),
-                        model = modelId,
                         reasoningMs = 2800,
                     ),
                     isStreaming = false,
                     onCopy = {}, onRegenerate = {}, onMore = {},
                     scale = selectedScale,
+                    charAvatarBitmap = preview.avatar,
                 )
 
                 Spacer(Modifier.height(16.dp))

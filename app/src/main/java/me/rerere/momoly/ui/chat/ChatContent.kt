@@ -103,8 +103,6 @@ internal fun ChatContent(
     frontendRpc: FrontendRpcCall = { method, _ -> error("Frontend RPC method is unavailable: $method") },
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeModeChange: (ThemeMode) -> Unit = {},
-    solidBackground: Boolean = false,
-    onSolidBackgroundChange: (Boolean) -> Unit = {},
     startAtSettings: Boolean = false,
 ) {
     val conversation = state.conversation
@@ -121,6 +119,8 @@ internal fun ChatContent(
     val overlayState = rememberChatOverlayState()
     val modelSelector = rememberModelSelectorState(model.displaySpec ?: "", model.apiConfig.providers)
     var scrollToBottomTrigger by remember { mutableIntStateOf(0) }
+    // 抽屉角色卡列表在每次打开时重载：角色增删改都发生在抽屉关闭期间
+    var drawerCharacterRefresh by remember { mutableIntStateOf(0) }
 
     val ctx = LocalContext.current
     val media = rememberChatMediaActions(onAction)
@@ -147,10 +147,13 @@ internal fun ChatContent(
     LaunchedEffect(drawerState.isOpen) {
         if (!drawerState.isOpen) onAction(ChatAction.ReloadUserProfile)
     }
-    // 打开抽屉（按钮或边缘手势）即收起键盘
+    // 打开抽屉（按钮或边缘手势）即收起键盘，并让角色卡列表重新加载
     LaunchedEffect(drawerState) {
         snapshotFlow { drawerState.isOpen }.collect {
-            if (it) keyboardController?.hide()
+            if (it) {
+                keyboardController?.hide()
+                drawerCharacterRefresh++
+            }
         }
     }
 
@@ -199,8 +202,6 @@ internal fun ChatContent(
             onAction = onAction,
             themeMode = themeMode,
             onThemeModeChange = onThemeModeChange,
-            solidBackground = solidBackground,
-            onSolidBackgroundChange = onSolidBackgroundChange,
             onBack = ::navBack,
             onNavigate = nav::add,
             onOpenSearchSession = { id ->
@@ -266,26 +267,21 @@ internal fun ChatContent(
                     onClose = { scope.launch { drawerState.close() } },
                     // 从抽屉进入的页面/弹层不关抽屉：返回（或收起面板）后仍停在抽屉
                     onSettings = { nav.add(Screen.Settings) },
-                    onTranslator = { nav.add(Screen.Translator) },
-                    onStatistics = { nav.add(Screen.Statistics) },
-                    onCharSelect = { overlayState.showCharPicker = true },
                     onCharList = { nav.add(Screen.Characters) },
                     onSearch = { nav.add(Screen.Search) },
-                    charName = conversation.current?.charName ?: "",
-                    charImage = conversation.characterImage,
-                    // 只显示当前角色卡的聊天列表
-                    sessions = conversation.sessions.filter { it.charFile == (conversation.current?.charFile ?: "") },
-                    currentSessionId = conversation.current?.id,
-                    onOpenSession = { id ->
+                    // 抽屉显示全部角色卡；一个角色对应一个聊天入口
+                    sessions = conversation.sessions,
+                    currentCharFile = conversation.current?.charFile.orEmpty(),
+                    onOpenCharacter = { file, name ->
                         scope.launch { drawerState.close() }
-                        onAction(ChatAction.OpenSession(id))
+                        onAction(ChatAction.OpenCharacter(file, name))
                     },
                     onRenameSession = { id, title -> overlayState.renameSession = id to title },
                     onPinSession = { id, pinned -> onAction(ChatAction.SetSessionPinned(id, pinned)) },
                     onRegenerateTitle = { onAction(ChatAction.RegenerateTitle(it)) },
                     onDeleteSession = { id -> overlayState.deleteSessionId = id },
-                    showChatListDate = prefs.showChatListDate,
                     longPressHaptic = prefs.longPressHaptic,
+                    refreshKey = drawerCharacterRefresh,
                     onUserProfileChanged = { name, description ->
                         onAction(ChatAction.UpdateUserProfile(name, description))
                     },
@@ -516,7 +512,6 @@ internal fun ChatContent(
                                 if (usePaging && i < lazyMessages.itemCount) lazyMessages[i]
                                 if (msg.role == "user") {
                                     UserMsg(
-                                        name = profile.userName,
                                         text = msg.content,
                                         images = msg.images,
                                         files = msg.files,
@@ -538,11 +533,6 @@ internal fun ChatContent(
                                         },
                                         scale = fontScale,
                                         avatarBitmap = profile.userAvatar,
-                                        showAvatar = prefs.showUserAvatar,
-                                        showName = prefs.showUserName,
-                                        showTimestamp = prefs.showUserTimestamp,
-                                        showActions = prefs.showUserActions,
-                                        timestamp = msg.ts,
                                         renderPrefs = renderPrefs.copy(markdown = prefs.userMarkdown),
                                     )
                                 } else {
@@ -580,12 +570,7 @@ internal fun ChatContent(
                                         depth = msgs.size - 1 - i,
                                         userName = profile.userName,
                                         charName = conversation.card?.name ?: conversation.current?.charName ?: "",
-                                        showModelIcon = prefs.showModelIcon,
-                                        showModelName = prefs.showModelName,
-                                        showModelTimestamp = prefs.showModelTimestamp,
-                                        showTokenUsage = prefs.showTokenUsage,
-                                        showTokenSpeed = prefs.showTokenSpeed,
-                                        showGenerationTime = prefs.showGenerationTime,
+                                        charAvatarBitmap = conversation.characterImage,
                                         autoCollapseThinking = prefs.autoCollapseThinking,
                                         thinkingMarkdown = prefs.thinkingMarkdown,
                                         renderPrefs = renderPrefs,

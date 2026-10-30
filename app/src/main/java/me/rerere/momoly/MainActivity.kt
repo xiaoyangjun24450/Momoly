@@ -160,13 +160,6 @@ class MainActivity : ComponentActivity() {
                                                 themeMode = mode
                                                 ThemeStore.setMode(this@MainActivity, mode)
                                             },
-                                            solidBackground = solidBackground,
-                                            onSolidBackgroundChange = { value ->
-                                                solidBackground = value
-                                                PreferencesStore.update(this@MainActivity) {
-                                                    it.copy(solidBackground = value)
-                                                }
-                                            },
                                             startAtSettings = startAtSettings,
                                         )
                                     }

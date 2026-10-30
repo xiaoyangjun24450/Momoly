@@ -40,6 +40,7 @@
     <string name="language">语言</string>
     <string name="font_size">字体大小</string>
     <string name="workspace">工作空间</string>
+    <string name="advanced">高级</string>
     <string name="characters">角色卡</string>
     <string name="presets">预设</string>
     <string name="world_books">世界书</string>
@@ -482,6 +483,7 @@
     <!-- Chat -->
     <string name="chat_history">聊天记录</string>
     <string name="no_chats">暂无聊天</string>
+    <string name="no_messages_yet">暂无消息</string>
     <string name="chat_empty_hint">发送消息开始对话</string>
     <string name="scroll_to_bottom">滚动到底部</string>
     <string name="scroll_to_top">滚动到顶部</string>

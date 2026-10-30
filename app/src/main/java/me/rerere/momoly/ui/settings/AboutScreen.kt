@@ -1,10 +1,9 @@
 package me.rerere.momoly.ui.settings
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,7 +31,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronRight
-import com.composables.icons.lucide.Github
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Scale
 import com.composables.icons.lucide.ScrollText
@@ -113,24 +111,9 @@ fun AboutScreen(onBack: () -> Unit) {
                 value = systemInfo,
             )
             AboutInfoRow(
-                icon = Lucide.Github,
-                label = stringResource(R.string.about_github),
-                value = stringResource(R.string.about_github_value),
-                onClick = {
-                    runCatching {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_URL)))
-                    }
-                },
-            )
-            AboutInfoRow(
                 icon = Lucide.Scale,
                 label = stringResource(R.string.about_license),
                 value = stringResource(R.string.about_license_value),
-                onClick = {
-                    runCatching {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(LICENSE_URL)))
-                    }
-                },
             )
         }
         PrefSection(stringResource(R.string.privacy_documents)) {
@@ -144,11 +127,23 @@ fun AboutScreen(onBack: () -> Unit) {
             }
         }
     }
-
 }
 
-private const val GITHUB_URL = "https://github.com/weiruchenai1/momoly"
-private const val LICENSE_URL = "https://github.com/weiruchenai1/momoly/blob/main/LICENSE"
+/** 分组容器：标题 + 圆角卡片 */
+@Composable
+private fun PrefSection(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 8.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+        ) {
+            content()
+        }
+    }
+}
 
 @Composable
 private fun AboutInfoRow(

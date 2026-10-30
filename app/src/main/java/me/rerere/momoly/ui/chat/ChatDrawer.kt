@@ -13,16 +13,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,16 +45,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import me.rerere.momoly.R
-import me.rerere.momoly.di.LocalAppContainer
 import com.composables.icons.lucide.Bolt
-import com.composables.icons.lucide.ChartColumnBig
 import com.composables.icons.lucide.ImagePlus
-import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.PencilLine
 import com.composables.icons.lucide.Pin
@@ -62,15 +58,18 @@ import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Smile
 import com.composables.icons.lucide.Trash2
 import com.composables.icons.lucide.UserPen
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import me.rerere.momoly.R
 import me.rerere.momoly.data.chat.ChatSession
-import androidx.compose.foundation.text.input.TextFieldState
-import me.rerere.momoly.ui.components.Space4
-import me.rerere.momoly.ui.components.Space8
-import me.rerere.momoly.ui.components.Space12
-import me.rerere.momoly.ui.components.Space16
+import me.rerere.momoly.di.LocalAppContainer
 import me.rerere.momoly.ui.components.AppIconButton
 import me.rerere.momoly.ui.components.AppTextArea
+import me.rerere.momoly.ui.components.Space12
+import me.rerere.momoly.ui.components.Space16
+import me.rerere.momoly.ui.components.Space4
+import me.rerere.momoly.ui.components.Space8
 import me.rerere.momoly.ui.components.appClickable
 
 /** 根据当前小时返回对应的问候语字符串资源 ID */
@@ -86,43 +85,23 @@ private fun greetingResId(): Int {
     }
 }
 
-/** 时间戳 → 本地日期（分组用） */
-private fun toLocalDate(ts: Long): java.time.LocalDate? = try {
-    java.time.Instant.ofEpochMilli(ts)
-        .atZone(java.time.ZoneId.systemDefault())
-        .toLocalDate()
-} catch (_: Exception) { null }
-
-/** 日期分组头：今天 / 昨天 / x月x日 */
-private fun dateHeaderText(date: java.time.LocalDate, today: java.time.LocalDate, ctx: android.content.Context): String = when (date) {
-    today -> ctx.getString(R.string.today)
-    today.minusDays(1) -> ctx.getString(R.string.yesterday)
-    else -> ctx.getString(R.string.date_header_fmt, date.monthValue, date.dayOfMonth)
-}
-
 @Composable
 fun ChatDrawerContent(
     onClose: () -> Unit,
     onSettings: () -> Unit,
-    onTranslator: () -> Unit = {},
-    onStatistics: () -> Unit = {},
-    onCharSelect: () -> Unit = {},
     onCharList: () -> Unit = {},
     onSearch: () -> Unit = {},
-    charName: String = "",
-    charImage: android.graphics.Bitmap? = null,
+    currentCharFile: String = "",
     sessions: List<ChatSession> = emptyList(),
-    currentSessionId: String? = null,
-    onOpenSession: (String) -> Unit = {},
+    refreshKey: Int = 0,
+    onOpenCharacter: (fileName: String, displayName: String) -> Unit = { _, _ -> },
     onRenameSession: (String, String) -> Unit = { _, _ -> },
     onPinSession: (String, Boolean) -> Unit = { _, _ -> },
     onRegenerateTitle: (String) -> Unit = {},
     onDeleteSession: (String) -> Unit = {},
-    showChatListDate: Boolean = false,
     longPressHaptic: Boolean = true,
     onUserProfileChanged: (String, String) -> Unit = { _, _ -> },
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val profileController = LocalAppContainer.current.features.chatUserProfile
     val initialProfile = remember(profileController) { profileController.load() }
@@ -133,6 +112,19 @@ fun ChatDrawerContent(
     var avatarBitmap by remember { mutableStateOf(initialProfile.avatar) }
     var showAvatarDialog by remember { mutableStateOf(false) }
     var showNameDialog by remember { mutableStateOf(false) }
+
+    // 角色卡列表：角色库提供卡名/头像，聊天库提供每个角色最近会话的最后一条消息
+    val container = LocalAppContainer.current
+    val characterController = remember(container) {
+        DrawerCharacterController(container.features.characterLibrary, container.chatRepository)
+    }
+    var characters by remember { mutableStateOf<List<DrawerCharacter>>(emptyList()) }
+    var charactersLoaded by remember { mutableStateOf(false) }
+    // refreshKey 在抽屉每次打开时递增：角色卡的增删改发生在抽屉关闭期间
+    LaunchedEffect(sessions, refreshKey) {
+        characters = withContext(Dispatchers.IO) { characterController.load(sessions) }
+        charactersLoaded = true
+    }
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -303,85 +295,43 @@ fun ChatDrawerContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        // ── 聊天历史 ──
+        // ── 角色卡列表（原聊天记录位置） ──
         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space4)) {
             item {
-                Text(stringResource(R.string.chat_history),
+                Text(stringResource(R.string.characters),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = Space4))
             }
-            if (sessions.isEmpty()) {
+            if (charactersLoaded && characters.isEmpty()) {
                 item {
-                    Text(stringResource(R.string.no_chats),
+                    Text(stringResource(R.string.no_characters),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 6.dp))
                 }
-            } else if (showChatListDate) {
-                // 按日期分组：今天 / 昨天 / x月x日 作为组头显示在标题卡片之外，卡片内不再放时间
-                val today = java.time.LocalDate.now()
-                val sorted = sessions.sortedWith(
-                    compareByDescending<ChatSession> { it.pinned }
-                        .thenByDescending { it.updatedAt }
-                )
-                var lastDate: java.time.LocalDate? = null
-                sorted.forEach { s ->
-                    val date = toLocalDate(s.updatedAt)
-                    if (date != null && date != lastDate) {
-                        item(key = "date_${s.pinned}_$date") {
-                            Text(dateHeaderText(date, today, context),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = Space8, bottom = Space4))
-                        }
-                        lastDate = date
-                    }
-                    item(key = s.id) {
-                        SessionCard(
-                            s, currentSessionId, onOpenSession, onRenameSession,
-                            onPinSession, onRegenerateTitle, onDeleteSession, longPressHaptic,
-                        )
-                    }
-                }
             } else {
-                itemsIndexed(sessions, key = { _, s -> s.id }) { _, s ->
-                    SessionCard(
-                        s, currentSessionId, onOpenSession, onRenameSession,
-                        onPinSession, onRegenerateTitle, onDeleteSession, longPressHaptic,
+                items(characters, key = { it.fileName }) { character ->
+                    // 重命名会话对话框的初始标题与旧会话列表一致：会话标题 → 首条用户消息
+                    val session = sessions.firstOrNull { it.id == character.sessionId }
+                    val defaultTitle = stringResource(R.string.new_chat)
+                    val renameTitle = session?.title?.takeIf { it.isNotBlank() }
+                        ?: session?.messages?.firstOrNull { it.role == "user" }?.content
+                            ?.replace('\n', ' ')?.take(24)
+                        ?: defaultTitle
+                    CharacterCardRow(
+                        character = character,
+                        selected = character.fileName == currentCharFile,
+                        renameTitle = renameTitle,
+                        onOpen = { onOpenCharacter(character.fileName, character.displayName) },
+                        onRenameSession = onRenameSession,
+                        onPinSession = onPinSession,
+                        onRegenerateTitle = onRegenerateTitle,
+                        onDeleteSession = onDeleteSession,
+                        longPressHaptic = longPressHaptic,
                     )
                 }
             }
-        }
-
-        // ── 当前角色 ──
-        Row(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable { onCharSelect() }
-                .padding(horizontal = Space12, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(Space8),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 角色卡图片（编辑器可更换）；无图回退到笑脸图标
-            if (charImage != null) {
-                Image(
-                    bitmap = charImage.asImageBitmap(),
-                    contentDescription = stringResource(R.string.character_avatar),
-                    modifier = Modifier.size(32.dp).clip(CircleShape),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
-                Icon(Lucide.Smile, null, Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text(
-                text = charName.ifBlank { stringResource(R.string.default_character) },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
         }
 
         // ── 底部导航 ──
@@ -392,22 +342,6 @@ fun ChatDrawerContent(
                 icon = Lucide.Smile,
                 contentDescription = stringResource(R.string.characters),
                 onClick = onCharList,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                container = MaterialTheme.colorScheme.surfaceContainerHighest,
-                iconSize = 22.dp,
-            )
-            AppIconButton(
-                icon = Lucide.Languages,
-                contentDescription = stringResource(R.string.translator_title),
-                onClick = onTranslator,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                container = MaterialTheme.colorScheme.surfaceContainerHighest,
-                iconSize = 22.dp,
-            )
-            AppIconButton(
-                icon = Lucide.ChartColumnBig,
-                contentDescription = stringResource(R.string.statistics_title),
-                onClick = onStatistics,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 container = MaterialTheme.colorScheme.surfaceContainerHighest,
                 iconSize = 22.dp,
@@ -424,12 +358,13 @@ fun ChatDrawerContent(
     }
 }
 
-/** 单条会话卡片：标题（+ 可选日期组头在卡片外，卡片内不含时间） */
+/** 角色卡行：头像 + 角色名 + 最新消息预览；有会话时长按弹出会话操作菜单 */
 @Composable
-private fun SessionCard(
-    s: ChatSession,
-    currentSessionId: String?,
-    onOpenSession: (String) -> Unit,
+private fun CharacterCardRow(
+    character: DrawerCharacter,
+    selected: Boolean,
+    renameTitle: String,
+    onOpen: () -> Unit,
     onRenameSession: (String, String) -> Unit,
     onPinSession: (String, Boolean) -> Unit,
     onRegenerateTitle: (String) -> Unit,
@@ -437,13 +372,12 @@ private fun SessionCard(
     longPressHaptic: Boolean,
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val selected = s.id == currentSessionId
-    val fallbackTitle = stringResource(R.string.new_chat)
-    // 标题：优先用模型生成的 title，回退到首条用户消息预览
-    val title = s.title.takeIf { it.isNotBlank() }
-        ?: s.messages.firstOrNull { it.role == "user" }?.content
-            ?.replace('\n', ' ')?.take(24)
-        ?: fallbackTitle
+    val sessionId = character.sessionId
+    val onLongClick: (() -> Unit)? = if (sessionId != null) {
+        { showMenu = true }
+    } else {
+        null
+    }
     Box {
         Row(
             Modifier.fillMaxWidth()
@@ -453,68 +387,92 @@ private fun SessionCard(
                     else Color.Transparent
                 )
                 .appClickable(
-                    onClick = { onOpenSession(s.id) },
-                    onLongClick = { showMenu = true },
+                    onClick = onOpen,
+                    onLongClick = onLongClick,
                     hapticFeedbackEnabled = longPressHaptic,
                 )
                 .padding(horizontal = Space8, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Space8),
         ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            if (s.pinned) {
-                Icon(
-                    Lucide.Pin,
-                    stringResource(R.string.pin),
-                    Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Box(
+                Modifier.size(40.dp).clip(CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                val avatar = character.avatar
+                if (avatar != null) {
+                    Image(
+                        bitmap = avatar.asImageBitmap(),
+                        contentDescription = stringResource(R.string.character_avatar),
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Icon(Lucide.Smile, null, Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    character.displayName.ifBlank { stringResource(R.string.default_character) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    character.lastMessage.ifBlank { stringResource(R.string.no_messages_yet) },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (character.pinned) {
+                Icon(Lucide.Pin, stringResource(R.string.pin), Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.rename)) },
-                leadingIcon = { Icon(Lucide.PencilLine, null, Modifier.size(18.dp)) },
-                onClick = {
-                    showMenu = false
-                    onRenameSession(s.id, title)
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(if (s.pinned) R.string.unpin else R.string.pin)) },
-                leadingIcon = { Icon(Lucide.Pin, null, Modifier.size(18.dp)) },
-                onClick = {
-                    showMenu = false
-                    onPinSession(s.id, !s.pinned)
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.regenerate_title)) },
-                leadingIcon = { Icon(Lucide.RefreshCw, null, Modifier.size(18.dp)) },
-                onClick = {
-                    showMenu = false
-                    onRegenerateTitle(s.id)
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
-                leadingIcon = {
-                    Icon(Lucide.Trash2, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
-                },
-                onClick = {
-                    showMenu = false
-                    onDeleteSession(s.id)
-                },
-            )
+        if (sessionId != null) {
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.rename)) },
+                    leadingIcon = { Icon(Lucide.PencilLine, null, Modifier.size(18.dp)) },
+                    onClick = {
+                        showMenu = false
+                        onRenameSession(sessionId, renameTitle)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(if (character.pinned) R.string.unpin else R.string.pin)) },
+                    leadingIcon = { Icon(Lucide.Pin, null, Modifier.size(18.dp)) },
+                    onClick = {
+                        showMenu = false
+                        onPinSession(sessionId, !character.pinned)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.regenerate_title)) },
+                    leadingIcon = { Icon(Lucide.RefreshCw, null, Modifier.size(18.dp)) },
+                    onClick = {
+                        showMenu = false
+                        onRegenerateTitle(sessionId)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = {
+                        Icon(Lucide.Trash2, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                    },
+                    onClick = {
+                        showMenu = false
+                        onDeleteSession(sessionId)
+                    },
+                )
+            }
         }
     }
 }

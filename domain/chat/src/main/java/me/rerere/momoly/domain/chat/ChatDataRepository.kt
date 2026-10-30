@@ -15,6 +15,8 @@ interface ChatDataRepository : ChatSessionDataSource {
         query: String,
         limit: Int = 100,
     ): List<SearchResult>
+    /** 每个会话最后一条可见消息的正文（侧边栏角色卡预览）；默认空实现让测试替身无需实现。 */
+    suspend fun latestMessagePreviews(sessionIds: List<String>): Map<String, String> = emptyMap()
     suspend fun messageCount(sessionId: String): Int
     suspend fun getMessage(sessionId: String, timestamp: Long): ChatMessage? =
         get(sessionId)?.messages?.firstOrNull { it.ts == timestamp }

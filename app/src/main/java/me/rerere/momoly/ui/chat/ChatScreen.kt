@@ -11,8 +11,6 @@ import me.rerere.momoly.data.settings.ThemeMode
 fun ChatScreen(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeModeChange: (ThemeMode) -> Unit = {},
-    solidBackground: Boolean = false,
-    onSolidBackgroundChange: (Boolean) -> Unit = {},
     startAtSettings: Boolean = false,
 ) {
     val application = LocalContext.current.applicationContext as MomolyApplication
@@ -29,8 +27,6 @@ fun ChatScreen(
         frontendRpc = viewModel::frontendRpc,
         themeMode = themeMode,
         onThemeModeChange = onThemeModeChange,
-        solidBackground = solidBackground,
-        onSolidBackgroundChange = onSolidBackgroundChange,
         startAtSettings = startAtSettings,
     )
 }

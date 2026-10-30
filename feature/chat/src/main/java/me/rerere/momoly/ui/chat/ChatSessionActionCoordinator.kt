@@ -49,9 +49,11 @@ internal class ChatSessionActionCoordinator(
         }
     }
 
+    /** 角色卡列表点击：进入该角色最近一次会话（与抽屉按 updatedAt 取最近会话一致）；
+     *  没有会话则新建。 */
     fun openCharacter(fileName: String, displayName: String) = select {
         val existing = if (newChatOnCharacterSwitch()) null
-        else conversation.sessions.firstOrNull { it.charFile == fileName }
+        else conversation.sessions.filter { it.charFile == fileName }.maxByOrNull { it.updatedAt }
         if (existing != null) {
             sessions.open(existing.id)
         } else {

@@ -90,6 +90,12 @@ internal data class SessionSummaryRow(
     val preview: String?,
 )
 
+/** 单个会话最后一条非隐藏消息的正文，供侧边栏角色卡显示最新消息预览。 */
+internal data class SessionLastMessageRow(
+    val sessionId: String,
+    val content: String,
+)
+
 internal data class ChatSearchRow(
     val sessionId: String,
     val title: String,
@@ -136,6 +142,19 @@ internal interface ChatDao {
         ORDER BY pinned DESC, updatedAt DESC
     """)
     suspend fun listSummaries(): List<SessionSummaryRow>
+
+    /** 每个会话最后一条非隐藏消息的正文；只取正文，不加载完整消息历史。 */
+    @Query("""
+        SELECT m.sessionId AS sessionId, m.content AS content
+        FROM messages m
+        WHERE m.isHidden = 0
+          AND m.sessionId IN (:sessionIds)
+          AND m.ts = (
+              SELECT MAX(x.ts) FROM messages x
+              WHERE x.sessionId = m.sessionId AND x.isHidden = 0
+          )
+    """)
+    suspend fun latestMessagePreviews(sessionIds: List<String>): List<SessionLastMessageRow>
 
     /** 每个会话只返回最早的一条命中消息，避免搜索页把完整聊天历史载入内存。 */
     @Query("""

@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,20 +23,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import com.composables.icons.lucide.ChevronLeft
 import com.composables.icons.lucide.ChevronRight
-import com.composables.icons.lucide.ArrowDownToLine
-import com.composables.icons.lucide.ArrowUpToLine
-import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.CircleStop
 import com.composables.icons.lucide.Copy
 import com.composables.icons.lucide.EllipsisVertical
@@ -45,25 +42,14 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.RotateCcw
 import com.composables.icons.lucide.UserPen
 import com.composables.icons.lucide.Volume2
-import com.composables.icons.lucide.Zap
-import java.text.NumberFormat
-import java.util.Locale
 import kotlin.math.roundToInt
 import me.rerere.momoly.R
 import me.rerere.momoly.data.chat.ChatMessage
 import me.rerere.momoly.data.chat.MsgFile
 import me.rerere.momoly.data.character.CharRegex
-import me.rerere.momoly.ui.api.ProviderIcon
 import me.rerere.momoly.ui.components.Space8
 import me.rerere.momoly.ui.components.Space12
 import me.rerere.momoly.ui.components.noRippleClickable
-
-/** 消息时间戳的显示格式：xxxx-xx-xx 08:12:04 */
-private fun formatMsgTime(ts: Long): String = try {
-    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-        .withZone(java.time.ZoneId.systemDefault())
-        .format(java.time.Instant.ofEpochMilli(ts))
-} catch (_: Exception) { "" }
 
 /** 把内容的最大宽度限制为父约束的 [fraction]（用户气泡不超过行宽的 ~80%） */
 private fun Modifier.maxWidthFraction(fraction: Float): Modifier = layout { measurable, constraints ->
@@ -78,9 +64,40 @@ internal fun TextStyle.scaledBy(scale: Float): TextStyle = copy(
     lineHeight = if (lineHeight.isSpecified) lineHeight * scale else lineHeight,
 )
 
+/** 圆形消息头像：有自定义图则显示图，否则用户侧回退 UserPen 图标。（AI 侧无图时不显示） */
+@Composable
+private fun MessageAvatar(
+    bitmap: android.graphics.Bitmap?,
+    size: Dp,
+    fallbackIcon: Boolean,
+) {
+    Box(
+        Modifier.size(size).clip(RoundedCornerShape(50)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = stringResource(R.string.character_avatar),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else if (fallbackIcon) {
+            Icon(
+                Lucide.UserPen,
+                null,
+                Modifier.size(size * 0.75f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * 用户消息：偏好页移除后固定只显示用户头像 + 附件/气泡 + 操作按钮，不再显示名字与时间戳。
+ */
 @Composable
 internal fun UserMsg(
-    name: String,
     text: String,
     onCopy: () -> Unit,
     onRegenerate: () -> Unit,
@@ -89,51 +106,16 @@ internal fun UserMsg(
     avatarBitmap: android.graphics.Bitmap? = null,
     images: List<String> = emptyList(),
     files: List<MsgFile> = emptyList(),
-    showAvatar: Boolean = true,
-    showName: Boolean = true,
-    showTimestamp: Boolean = false,
-    showActions: Boolean = true,
-    timestamp: Long = 0L,
     renderPrefs: RenderPrefs = RenderPrefs(),
 ) {
     val s8 = (Space8.value * scale).dp
     val s12 = (Space12.value * scale).dp
     val iconSz = (18f * scale).dp
+    val avatarSz = (24f * scale).dp
     val textStyle = MaterialTheme.typography.titleMedium.scaledBy(scale)
-    val timeStyle = MaterialTheme.typography.labelSmall.scaledBy(scale)
 
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(s8)) {
-        if (showName || showAvatar || showTimestamp) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(s8)) {
-                val avatarSz = (24f * scale).dp
-                // 时间戳显示在名称下方
-                if (showName || showTimestamp) {
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        if (showName) Text(name, style = textStyle, color = MaterialTheme.colorScheme.onSurface)
-                        if (showTimestamp) Text(formatMsgTime(timestamp), style = timeStyle,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                if (showAvatar) {
-                    Box(
-                        Modifier.size(avatarSz).clip(RoundedCornerShape(50)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (avatarBitmap != null) {
-                            Image(
-                                bitmap = avatarBitmap.asImageBitmap(),
-                                contentDescription = stringResource(R.string.character_avatar),
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop,
-                            )
-                        } else {
-                            Icon(Lucide.UserPen, null, Modifier.size(avatarSz * 0.75f),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-        }
+        MessageAvatar(bitmap = avatarBitmap, size = avatarSz, fallbackIcon = true)
         MessageAttachmentRow(images = images, files = files)
         if (text.isNotBlank()) {
             // 气泡拥抱内容（markdown 走 fillWidth=false 让正文按内容撑宽，而不是固定铺满 80%）
@@ -146,26 +128,29 @@ internal fun UserMsg(
                 }
             }
         }
-        if (showActions) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Lucide.Copy, stringResource(R.string.copy),
-                    Modifier.noRippleClickable { onCopy() }
-                        .padding(horizontal = s8, vertical = s8).size(iconSz),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Icon(Lucide.RotateCcw, stringResource(R.string.regenerate),
-                    Modifier.noRippleClickable { onRegenerate() }
-                        .padding(horizontal = s8, vertical = s8).size(iconSz),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                // 末位插槽不带 end padding，让图形与气泡右缘对齐
-                Icon(Lucide.EllipsisVertical, stringResource(R.string.more),
-                    Modifier.noRippleClickable { onMore() }
-                        .padding(start = s8, top = s8, bottom = s8).size(iconSz),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        // 用户操作按钮常显（偏好页已移除，不再有开关）
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Lucide.Copy, stringResource(R.string.copy),
+                Modifier.noRippleClickable { onCopy() }
+                    .padding(horizontal = s8, vertical = s8).size(iconSz),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Lucide.RotateCcw, stringResource(R.string.regenerate),
+                Modifier.noRippleClickable { onRegenerate() }
+                    .padding(horizontal = s8, vertical = s8).size(iconSz),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            // 末位插槽不带 end padding，让图形与气泡右缘对齐
+            Icon(Lucide.EllipsisVertical, stringResource(R.string.more),
+                Modifier.noRippleClickable { onMore() }
+                    .padding(start = s8, top = s8, bottom = s8).size(iconSz),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
+/**
+ * AI 消息：偏好页移除后固定只显示角色卡头像 + 思考时间线/正文/引用 + 操作与版本切换，
+ * 不再显示模型图标、模型名、时间戳和 token/速度/耗时统计。
+ */
 @Composable
 internal fun AIMsg(
     msg: ChatMessage,
@@ -182,12 +167,7 @@ internal fun AIMsg(
     depth: Int? = null,
     userName: String = "",
     charName: String = "",
-    showModelIcon: Boolean = true,
-    showModelName: Boolean = true,
-    showModelTimestamp: Boolean = false,
-    showTokenUsage: Boolean = false,
-    showTokenSpeed: Boolean = false,
-    showGenerationTime: Boolean = false,
+    charAvatarBitmap: android.graphics.Bitmap? = null,
     autoCollapseThinking: Boolean = true,
     thinkingMarkdown: Boolean = true,
     renderPrefs: RenderPrefs = RenderPrefs(),
@@ -203,28 +183,13 @@ internal fun AIMsg(
 ) {
     val s8 = (Space8.value * scale).dp
     val iconSz = (18f * scale).dp
+    val avatarSz = (24f * scale).dp
     val textStyle = MaterialTheme.typography.titleMedium.scaledBy(scale)
-    val metaStyle = MaterialTheme.typography.labelSmall.scaledBy(scale)
-
-    val modelIconSz = (24f * scale).dp
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(s8)) {
-        // 模型头部（开场白等无模型的消息不显示；开关全关时不渲染整行）。时间戳显示在模型名下方。
-        if (msg.model.isNotBlank() && (showModelIcon || showModelName || showModelTimestamp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(s8)) {
-                if (showModelIcon) ProviderIcon(msg.model, size = modelIconSz)
-                if (showModelName || showModelTimestamp) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        if (showModelName) {
-                            Text(msg.model, style = textStyle, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                        if (showModelTimestamp) {
-                            Text(formatMsgTime(msg.ts), style = metaStyle,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
+        // 角色卡头像（无卡面图时不占位）
+        if (charAvatarBitmap != null) {
+            MessageAvatar(bitmap = charAvatarBitmap, size = avatarSz, fallbackIcon = false)
         }
         // 深度思考 / 联网搜索时间线卡片
         ThoughtTimelineCard(
@@ -319,97 +284,6 @@ internal fun AIMsg(
                     }
                 }
             }
-            if (showTokenUsage || showTokenSpeed || showGenerationTime) {
-                MessageStatsLine(
-                    msg = msg,
-                    scale = scale,
-                    textStyle = metaStyle,
-                    showTokenUsage = showTokenUsage,
-                    showTokenSpeed = showTokenSpeed,
-                    showGenerationTime = showGenerationTime,
-                )
-            }
         }
-    }
-}
-
-@Composable
-private fun MessageStatsLine(
-    msg: ChatMessage,
-    scale: Float,
-    textStyle: TextStyle,
-    showTokenUsage: Boolean,
-    showTokenSpeed: Boolean,
-    showGenerationTime: Boolean,
-) {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-    val iconSize = (12f * scale).dp
-    val numberFormat = remember { NumberFormat.getIntegerInstance() }
-    val durationSeconds = msg.generationMs / 1000f
-    val tokensPerSecond = if (msg.generationMs > 0L) {
-        msg.completionTokens * 1000f / msg.generationMs
-    } else 0f
-
-    FlowRow(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        if (showTokenUsage) {
-            MessageStatItem(
-                icon = Lucide.ArrowUpToLine,
-                contentDescription = stringResource(R.string.input_tokens),
-                text = stringResource(R.string.token_stats_fmt, numberFormat.format(msg.promptTokens)),
-                iconSize = iconSize,
-                textStyle = textStyle,
-                color = color,
-            )
-            MessageStatItem(
-                icon = Lucide.ArrowDownToLine,
-                contentDescription = stringResource(R.string.output_tokens),
-                text = stringResource(R.string.token_stats_fmt, numberFormat.format(msg.completionTokens)),
-                iconSize = iconSize,
-                textStyle = textStyle,
-                color = color,
-            )
-        }
-        if (showTokenSpeed) {
-            MessageStatItem(
-                icon = Lucide.Zap,
-                contentDescription = stringResource(R.string.generation_speed),
-                text = String.format(Locale.US, "%.1f tok/s", tokensPerSecond),
-                iconSize = iconSize,
-                textStyle = textStyle,
-                color = color,
-            )
-        }
-        if (showGenerationTime) {
-            MessageStatItem(
-                icon = Lucide.Clock,
-                contentDescription = stringResource(R.string.total_duration),
-                text = String.format(Locale.US, "%.1fs", durationSeconds),
-                iconSize = iconSize,
-                textStyle = textStyle,
-                color = color,
-            )
-        }
-    }
-}
-
-@Composable
-private fun MessageStatItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    text: String,
-    iconSize: androidx.compose.ui.unit.Dp,
-    textStyle: TextStyle,
-    color: androidx.compose.ui.graphics.Color,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Icon(icon, contentDescription, Modifier.size(iconSize), tint = color)
-        Text(text, style = textStyle, color = color)
     }
 }

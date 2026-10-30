@@ -40,6 +40,7 @@
     <string name="language">Language</string>
     <string name="font_size">Font Size</string>
     <string name="workspace">Workspace</string>
+    <string name="advanced">Advanced</string>
     <string name="characters">Character Cards</string>
     <string name="presets">Presets</string>
     <string name="world_books">World Books</string>
@@ -484,6 +485,7 @@
     <!-- Chat -->
     <string name="chat_history">Chats</string>
     <string name="no_chats">No chats yet</string>
+    <string name="no_messages_yet">No messages yet</string>
     <string name="chat_empty_hint">Send a message to start chatting</string>
     <string name="scroll_to_bottom">Scroll to bottom</string>
     <string name="scroll_to_top">Scroll to top</string>

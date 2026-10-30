@@ -1,5 +1,9 @@
 package me.rerere.momoly.ui.settings
 
+import android.app.Activity
+import android.os.Build
+import androidx.activity.compose.BackHandler
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,40 +27,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.os.LocaleListCompat
 import com.composables.icons.lucide.ALargeSmall
-import me.rerere.momoly.R
-import me.rerere.momoly.di.LocalAppContainer
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.CircleHelp
-import com.composables.icons.lucide.Database
-import android.app.Activity
-import android.os.Build
-import android.content.Context
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
 import com.composables.icons.lucide.Globe
-import com.composables.icons.lucide.Info
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Monitor
 import com.composables.icons.lucide.Moon
-import com.composables.icons.lucide.Bot
-import com.composables.icons.lucide.Bug
 import com.composables.icons.lucide.Package
-import com.composables.icons.lucide.Puzzle
 import com.composables.icons.lucide.ScrollText
-import com.composables.icons.lucide.Earth
-import com.composables.icons.lucide.FileTerminal
-import com.composables.icons.lucide.Settings2
 import com.composables.icons.lucide.Smile
-import com.composables.icons.lucide.SlidersHorizontal
-import com.composables.icons.lucide.SquareLibrary
 import com.composables.icons.lucide.Sun
 import com.composables.icons.lucide.Volume2
+import me.rerere.momoly.R
 import me.rerere.momoly.data.settings.ThemeMode
+import me.rerere.momoly.di.LocalAppContainer
 import me.rerere.momoly.ui.components.SettingsSubPage
 
 private val LANGUAGE_CODES = listOf("zh", "en")
@@ -66,34 +56,18 @@ fun SettingsScreen(
     onBack: () -> Unit,
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeModeChange: (ThemeMode) -> Unit = {},
-    onNavigateToPresets: () -> Unit = {},
     onNavigateToCharacters: () -> Unit = {},
-    onNavigateToWorldBooks: () -> Unit = {},
     onNavigateToApiConfig: () -> Unit = {},
-    onNavigateToDataManagement: () -> Unit = {},
     onNavigateToFontSize: () -> Unit = {},
-    onNavigateToPreferences: () -> Unit = {},
-    onNavigateToLogs: () -> Unit = {},
-    onNavigateToCrashReport: () -> Unit = {},
-    onNavigateToExtensions: () -> Unit = {},
-    onNavigateToDefaultModel: () -> Unit = {},
-    onNavigateToWebSearch: () -> Unit = {},
     onNavigateToTts: () -> Unit = {},
-    onNavigateToRegex: () -> Unit = {},
+    onNavigateToSummarize: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val controller = LocalAppContainer.current.features.settings
     var currentLang by remember(controller) { mutableStateOf(controller.language()) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLangDialog by remember { mutableStateOf(false) }
-    var showUpdateDialog by remember { mutableStateOf(false) }
-
-    val versionName = remember {
-        try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.1"
-        } catch (_: Exception) { "0.0.1" }
-    }
 
     BackHandler(onBack = onBack)
 
@@ -192,13 +166,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showUpdateDialog) {
-        UpdateCheckDialog(
-            currentVersion = versionName,
-            onDismiss = { showUpdateDialog = false },
-        )
-    }
-
     val themeLabel = when (themeMode) {
         ThemeMode.SYSTEM -> stringResource(R.string.follow_system)
         ThemeMode.LIGHT -> stringResource(R.string.light)
@@ -213,29 +180,21 @@ fun SettingsScreen(
     SettingsSubPage(stringResource(R.string.settings), onBack) {
         SettingsSection(stringResource(R.string.general_settings)) {
             SettingsRow(
-                { Icon(currentThemeIcon, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.color_mode), themeLabel,
-                onClick = { showThemeDialog = true })
-            SettingsRow(
                 { Icon(Lucide.Globe, null, Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                 stringResource(R.string.language), controller.languageLabel(currentLang),
                 onClick = { showLangDialog = true })
             SettingsRow(
-                { Icon(Lucide.Settings2, null, Modifier.size(24.dp),
+                { Icon(currentThemeIcon, null, Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.preferences), onClick = onNavigateToPreferences)
+                stringResource(R.string.color_mode), themeLabel,
+                onClick = { showThemeDialog = true })
             SettingsRow(
                 { Icon(Lucide.ALargeSmall, null, Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                 stringResource(R.string.font_size), onClick = onNavigateToFontSize)
         }
         SettingsSection(stringResource(R.string.workspace)) {
-            SettingsRow(
-                { Icon(Lucide.Bot, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.default_model_title), onClick = onNavigateToDefaultModel)
             SettingsRow(
                 { Icon(Lucide.Package, null, Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -245,52 +204,17 @@ fun SettingsScreen(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                 stringResource(R.string.characters), onClick = onNavigateToCharacters)
             SettingsRow(
-                { Icon(Lucide.SlidersHorizontal, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.presets), onClick = onNavigateToPresets)
-            SettingsRow(
-                { Icon(Lucide.FileTerminal, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.regex_title), onClick = onNavigateToRegex)
-            SettingsRow(
-                { Icon(Lucide.SquareLibrary, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.world_books), onClick = onNavigateToWorldBooks)
-            SettingsRow(
-                { Icon(Lucide.Earth, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.search_service), onClick = onNavigateToWebSearch)
-            SettingsRow(
                 { Icon(Lucide.Volume2, null, Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                 stringResource(R.string.tts), onClick = onNavigateToTts)
-            SettingsRow(
-                { Icon(Lucide.Puzzle, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.extensions), onClick = onNavigateToExtensions)
-            SettingsRow(
-                { Icon(Lucide.Database, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.data_management), onClick = onNavigateToDataManagement)
         }
-        SettingsSection(stringResource(R.string.about)) {
-            SettingsRow(
-                { Icon(Lucide.Bug, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.crash_feedback),
-                onClick = onNavigateToCrashReport)
+        SettingsSection(stringResource(R.string.advanced)) {
             SettingsRow(
                 { Icon(Lucide.ScrollText, null, Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.logs),
-                onClick = onNavigateToLogs)
-            SettingsRow(
-                { Icon(Lucide.Info, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.check_update), versionName,
-                onClick = {
-                    showUpdateDialog = true
-                })
+                stringResource(R.string.ext_summarize), onClick = onNavigateToSummarize)
+        }
+        SettingsSection(stringResource(R.string.about)) {
             SettingsRow(
                 { Icon(Lucide.CircleHelp, null, Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant) },

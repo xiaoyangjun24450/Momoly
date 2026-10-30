@@ -37,6 +37,13 @@ object ChatRepository {
     suspend fun listSummaries(context: Context): List<ChatSession> =
         dao(context).listSummaries().map { it.toModel() }
 
+    /** 每个会话最后一条非隐藏消息的正文（侧边栏角色卡首页预览）；空 id 列表直接返回空表。 */
+    suspend fun latestMessagePreviews(context: Context, sessionIds: List<String>): Map<String, String> {
+        if (sessionIds.isEmpty()) return emptyMap()
+        return dao(context).latestMessagePreviews(sessionIds)
+            .associate { it.sessionId to it.content }
+    }
+
     /** 返回指定角色的聊天数量。 */
     suspend fun countForCharacter(context: Context, charFile: String): Int =
         listSummaries(context).count { it.charFile == charFile }
