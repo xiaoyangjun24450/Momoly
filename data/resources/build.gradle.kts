@@ -4,6 +4,7 @@ plugins {
 
 android {
     namespace = "me.rerere.momoly.data.resources"
+    testOptions.unitTests.isIncludeAndroidResources = true
 }
 
 dependencies {
@@ -15,4 +16,5 @@ dependencies {
 
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.robolectric)
+    testImplementation(project(":domain:generation"))
 }

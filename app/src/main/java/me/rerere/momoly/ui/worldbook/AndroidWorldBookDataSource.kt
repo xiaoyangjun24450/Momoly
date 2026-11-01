@@ -10,7 +10,11 @@ import me.rerere.momoly.data.worldbook.WorldBookRepository
 internal class AndroidWorldBookDataSource(
     private val context: Context,
 ) : WorldBookDataSource {
-    override suspend fun names(): List<String> = WorldBookRepository.listNames(context)
+    override suspend fun names(): List<String> {
+        // 直接打开世界书页面时也能看到内置规则，不依赖先进入聊天。
+        WorldBookRepository.ensureDefaultBook(context)
+        return WorldBookRepository.listNames(context)
+    }
     override suspend fun load(name: String): WorldBook = WorldBookRepository.load(context, name)
     override suspend fun create(name: String): WorldBook = WorldBookRepository.create(context, name)
     override suspend fun import(source: Uri): WorldBook = WorldBookRepository.import(context, source)

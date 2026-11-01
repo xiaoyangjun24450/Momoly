@@ -205,6 +205,10 @@ object CharacterRepository {
 
         val json = JSONObject(jsonStr)
         val data = json.optJSONObject("data") ?: json
+        val charaBook = json.optJSONObject("data")?.optJSONObject("character_book")
+            ?: json.optJSONObject("character_book")
+        // 写入任何角色资源前检查世界书，避免导入失败后留下头像或联系人。
+        require(charaBook != null) { "角色卡未附带世界书，无法导入" }
         if (!data.has("linked_preset_id") && defaultPresetId.isNotBlank()) {
             data.put("linked_preset_id", defaultPresetId)
         }
@@ -232,14 +236,10 @@ object CharacterRepository {
                     createdImage = true
                 }
 
-                val charaBook = json.optJSONObject("data")?.optJSONObject("character_book")
-                    ?: json.optJSONObject("character_book")
-                if (charaBook != null) {
-                    val bookName = charaBook.optString("name", "").ifBlank { "$name 世界书" }
-                    val extractedBook = WorldBookRepository.createFromCharacterBook(context, bookName, charaBook)
-                    createdWorldBook = extractedBook
-                    data.put("enabled_world_book_ids", JSONArray().put(extractedBook.id))
-                }
+                val bookName = charaBook.optString("name", "").ifBlank { "$name 世界书" }
+                val extractedBook = WorldBookRepository.createFromCharacterBook(context, bookName, charaBook)
+                createdWorldBook = extractedBook
+                data.put("enabled_world_book_ids", JSONArray().put(extractedBook.id))
 
                 val embeddedRegex = data.optJSONObject("extensions")?.optJSONArray("regex_scripts")
                 if (embeddedRegex != null) {

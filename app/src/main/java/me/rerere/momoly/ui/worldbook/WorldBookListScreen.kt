@@ -37,6 +37,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.SlidersHorizontal
 import me.rerere.momoly.R
 import me.rerere.momoly.di.LocalAppContainer
+import me.rerere.momoly.data.OnlineChatDefaults
 import me.rerere.momoly.data.worldbook.WorldBook
 import me.rerere.momoly.ui.components.AppIconButton
 import me.rerere.momoly.ui.components.CreateItemSpec
@@ -92,6 +93,7 @@ fun WorldBookListScreen(onBack: () -> Unit) {
         deleteMsgFmtRes = R.string.delete_worldbook_msg_fmt,
         controller = controller,
         listState = listState,
+        canDeleteItem = { listState.items[it]?.id != OnlineChatDefaults.WORLD_BOOK_ID },
         exportItem = controller::exportJson,
         onOpen = { selectedName = it.name },
         createItem = CreateItemSpec(

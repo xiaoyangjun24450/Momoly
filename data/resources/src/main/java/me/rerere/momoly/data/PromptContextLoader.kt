@@ -47,8 +47,11 @@ object PromptContextLoader {
             null
         }
             ?: return Loaded(charFile, null, emptyList(), null, failures = failures)
-        val books = card.enabledWorldBookIds
+        // 全角色共用同一份规则书，不写入角色的世界归属或导出载荷。
+        val defaultBook = WorldBookRepository.ensureDefaultBook(context)
+        val linkedBooks = card.enabledWorldBookIds
             .filter { it.isNotBlank() }
+            .filter { it != defaultBook.id }
             .distinct()
             .mapNotNull { id ->
                 try {
@@ -61,8 +64,15 @@ object PromptContextLoader {
                     null
                 }
             }
-        val preset = if (card.linkedPresetId.isBlank()) null else try {
-            PresetRepository.loadById(context, card.linkedPresetId)
+        val books = listOf(defaultBook) + linkedBooks
+        val preset = try {
+            // 没有关联预设的已有角色也使用默认聊天方式；自选预设继续按原关联读取。
+            if (card.linkedPresetId.isBlank()) {
+                val name = PresetRepository.ensureDefaultPreset(context)
+                PresetRepository.load(context, name)
+            } else {
+                PresetRepository.loadById(context, card.linkedPresetId)
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {

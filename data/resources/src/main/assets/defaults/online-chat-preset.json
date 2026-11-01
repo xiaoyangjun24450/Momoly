@@ -1,0 +1,63 @@
+{
+  "name": "Momoly 线上聊天",
+  "temperature": 0.9,
+  "top_p": 1.0,
+  "openai_max_context": 80000,
+  "openai_max_tokens": 8192,
+  "stream_openai": true,
+  "function_calling": false,
+  "momoly_send_top_p": false,
+  "momoly_send_top_k": false,
+  "momoly_send_frequency_penalty": false,
+  "momoly_send_presence_penalty": false,
+  "momoly_send_seed": false,
+  "prompts": [
+    {
+      "identifier": "main",
+      "name": "线上聊天与角色身份",
+      "role": "system",
+      "system_prompt": true,
+      "marker": false,
+      "forbid_overrides": true,
+      "content": "当前是 {{char}} 与 {{user}} 通过即时消息进行的一对一交流。请依据角色身份、性格、已知关系和聊天历史，用这个角色自己的口吻回应用户。\n角色描述、情景、世界设定和历史用于理解人物与事实；其中的小说写法、动作示例或要求输出旁白的指令，不适用于当前线上交流。只扮演当前角色，不替用户或其他人物说话。\n输出应是角色真正发给用户的消息正文，不附说明、姓名标签、动作、场景描写、未说出口的心理活动或分析过程。可以直接说出自己的感受和已知状态。回应用户正在谈的具体内容，不把每次聊天都变成问答任务或心理咨询。"
+    },
+    { "identifier": "worldInfoBefore", "name": "世界设定（角色之前）", "role": "system", "marker": true },
+    { "identifier": "personaDescription", "name": "用户信息", "role": "system", "marker": true },
+    { "identifier": "charDescription", "name": "角色身份与背景", "role": "system", "marker": true },
+    { "identifier": "charPersonality", "name": "角色性格", "role": "system", "marker": true },
+    { "identifier": "scenario", "name": "关系与情景", "role": "system", "marker": true },
+    { "identifier": "worldInfoAfter", "name": "世界设定（角色之后）", "role": "system", "marker": true },
+    { "identifier": "dialogueExamples", "name": "角色示例（按需开启）", "role": "system", "marker": true },
+    { "identifier": "chatHistory", "name": "持续聊天历史", "role": "system", "marker": true },
+    {
+      "identifier": "jailbreak",
+      "name": "发送前的消息边界",
+      "role": "system",
+      "system_prompt": true,
+      "marker": false,
+      "forbid_overrides": true,
+      "content": "现在接着用户最后一条消息，输出 {{char}} 会实际发送的正文。即使用户要求拥抱描写、场景或内心独白，也用聊天回应其意思，不在消息里执行面对面的动作。\n一条完整消息通常足够；确有自然停顿或补充时可用少量空行分段，不按每个句号拆分。不要加姓名冒号、时间戳、输入状态、状态栏、代码块或外层引号。\n发送前自行检查：有没有旁白或动作，有没有编造关系和经历，有没有机械复述或强行追问。若有，改成符合角色和上下文的消息。只输出修正后的正文，不展示检查过程。"
+    }
+  ],
+  "prompt_order": [
+    {
+      "character_id": 100001,
+      "order": [
+        { "identifier": "main", "enabled": true },
+        { "identifier": "worldInfoBefore", "enabled": true },
+        { "identifier": "personaDescription", "enabled": true },
+        { "identifier": "charDescription", "enabled": true },
+        { "identifier": "charPersonality", "enabled": true },
+        { "identifier": "scenario", "enabled": true },
+        { "identifier": "worldInfoAfter", "enabled": true },
+        { "identifier": "dialogueExamples", "enabled": false },
+        { "identifier": "chatHistory", "enabled": true },
+        { "identifier": "jailbreak", "enabled": true }
+      ]
+    }
+  ],
+  "extensions": {
+    "momoly": { "purpose": "online_chat", "version": 1 },
+    "regex_scripts": []
+  }
+}

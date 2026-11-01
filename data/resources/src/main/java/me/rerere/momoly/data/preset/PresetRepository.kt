@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import me.rerere.momoly.data.JsonFileDir
+import me.rerere.momoly.data.OnlineChatDefaults
 import me.rerere.momoly.data.RESOURCE_ID_FIELD
 import me.rerere.momoly.data.ensureResourceId
 import me.rerere.momoly.data.newResourceId
@@ -26,14 +27,21 @@ object PresetRepository {
     fun presetsDir(context: Context): File = JsonFileDir.dir(context, PRESETS_DIR)
 
     /** 确保内置默认预设存在；文件名首次创建后固定，不随语言切换。 */
-    suspend fun ensureDefaultPreset(context: Context, fallbackName: String): String = withContext(Dispatchers.IO) {
+    suspend fun ensureDefaultPreset(context: Context, fallbackName: String = OnlineChatDefaults.PRESET_NAME): String = withContext(Dispatchers.IO) {
         writeMutex.withLock {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val name = prefs.getString(KEY_DEFAULT_NAME, null)
                 ?: fallbackName.also { value -> prefs.edit().putString(KEY_DEFAULT_NAME, value).apply() }
             val file = JsonFileDir.file(context, PRESETS_DIR, name)
-            val root = if (file.exists()) JSONObject(file.readText()) else JSONObject()
-            if (!file.exists() || root.resourceId().isBlank()) {
+            var root = if (file.exists()) JSONObject(file.readText()) else JSONObject()
+            val emptyDefault = root.length() == 0 || (root.length() == 1 && root.has(RESOURCE_ID_FIELD))
+            if (emptyDefault) {
+                val previousId = root.resourceId()
+                // 只填充原来的空白默认预设，保留资源 ID 和用户已经编辑的预设。
+                root = OnlineChatDefaults.readPreset(context)
+                if (previousId.isNotBlank()) root.put(RESOURCE_ID_FIELD, previousId)
+            }
+            if (emptyDefault || root.resourceId().isBlank()) {
                 root.ensureResourceId()
                 JsonFileDir.atomicWriteText(file, root.toString(2))
             }

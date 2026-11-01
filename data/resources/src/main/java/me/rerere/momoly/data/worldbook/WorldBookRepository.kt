@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import me.rerere.momoly.data.JsonFileDir
+import me.rerere.momoly.data.OnlineChatDefaults
 import me.rerere.momoly.data.RESOURCE_ID_FIELD
 import me.rerere.momoly.data.ensureResourceId
 import me.rerere.momoly.data.newResourceId
@@ -22,6 +23,32 @@ object WorldBookRepository {
     private val writeMutex = Mutex()
 
     fun worldDir(context: Context): File = JsonFileDir.dir(context, WORLD_DIR)
+
+    /** 共用规则按固定 ID 查找；重命名和编辑后仍使用原书，不覆盖用户的修改。 */
+    suspend fun ensureDefaultBook(context: Context): WorldBook = withContext(Dispatchers.IO) {
+        writeMutex.withLock {
+            // 先查找已安装的规则书，避免每次启动都创建副本。
+            val existing = findDefaultBookFile(context)
+            if (existing != null) {
+                return@withLock WorldBookParser.parse(JSONObject(existing.readText()), existing.nameWithoutExtension)
+            }
+            // 首次安装从随应用打包的酒馆 JSON 创建独立资源，不改角色所属世界。
+            val root = OnlineChatDefaults.readWorldBook(context)
+            val title = root.getString("name")
+            val name = JsonFileDir.uniqueName(context, WORLD_DIR, title, title)
+            JsonFileDir.atomicWriteText(JsonFileDir.file(context, WORLD_DIR, name), root.toString(2))
+            WorldBookParser.parse(root, name)
+        }
+    }
+
+    private fun findDefaultBookFile(context: Context): File? {
+        for (file in worldDir(context).listFiles().orEmpty()) {
+            if (file.extension != "json") continue
+            val id = runCatching { JSONObject(file.readText()).resourceId() }.getOrNull()
+            if (id == OnlineChatDefaults.WORLD_BOOK_ID) return file
+        }
+        return null
+    }
 
     suspend fun listNames(context: Context): List<String> =
         JsonFileDir.listNames(context, WORLD_DIR)
@@ -87,8 +114,11 @@ object WorldBookRepository {
         }
     }
 
-    suspend fun delete(context: Context, name: String) =
-        JsonFileDir.delete(context, WORLD_DIR, name)
+    suspend fun delete(context: Context, name: String) {
+        if (load(context, name).id != OnlineChatDefaults.WORLD_BOOK_ID) {
+            JsonFileDir.delete(context, WORLD_DIR, name)
+        }
+    }
 
     /** 重命名世界书，成功返回 true（目标名已存在或源不存在则失败） */
     suspend fun rename(context: Context, oldName: String, newName: String): Boolean =
@@ -233,5 +263,13 @@ object WorldBookRepository {
     }
 
     /** 清空所有世界书 */
-    suspend fun clear(context: Context) = JsonFileDir.clear(context, WORLD_DIR)
+    suspend fun clear(context: Context) = withContext(Dispatchers.IO) {
+        writeMutex.withLock {
+            val defaultFile = findDefaultBookFile(context)
+            worldDir(context).listFiles()?.forEach { file ->
+                if (file != defaultFile) file.delete()
+            }
+        }
+        Unit
+    }
 }
