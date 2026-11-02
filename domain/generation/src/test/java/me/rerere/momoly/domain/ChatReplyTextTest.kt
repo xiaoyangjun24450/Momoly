@@ -8,10 +8,13 @@ class ChatReplyTextTest {
         assertEquals(listOf("我出门了", "顺便给你买水", "要常温的吗"), ChatReplyText.split("我出门了，顺便给你买水。要常温的吗？"))
         assertEquals(listOf("她说他来了"), ChatReplyText.split("她说，他来了。"))
         assertEquals(listOf("好"), ChatReplyText.split("好！"))
-        val text = (1..12).joinToString("。") { "这是第${it}句话" }
-        val parts = ChatReplyText.split(text)
-        assertEquals(6, parts.size)
-        assertEquals(text.replace("。", ""), parts.joinToString("").replace("\n", ""))
+    }
+
+    @Test fun keepsEveryBubbleBeyondSixForPunctuationAndNewlines() {
+        val expected = (1..12).map { "这是第${it}句话" }
+        for (separator in listOf("。", "\n", "\r\n")) {
+            assertEquals(expected, ChatReplyText.split(expected.joinToString(separator)))
+        }
     }
 
     @Test fun protectsNumbersLinksCodeAndQuotedContent() {

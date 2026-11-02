@@ -54,7 +54,7 @@ object ChatReplyText {
             val tail = merged.removeAt(merged.lastIndex)
             merged[merged.lastIndex] += tail
         }
-        return if (merged.size <= 6) merged else merged.take(5) + merged.drop(5).joinToString("\n")
+        return merged
     }
 
     fun gapMillis(text: String, millisPerCharacter: Long = 750): Long =
