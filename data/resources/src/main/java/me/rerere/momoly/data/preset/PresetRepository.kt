@@ -26,7 +26,7 @@ object PresetRepository {
 
     fun presetsDir(context: Context): File = JsonFileDir.dir(context, PRESETS_DIR)
 
-    /** 确保内置默认预设存在；文件名首次创建后固定，不随语言切换。 */
+    /** 内置默认随 APP 内容版本更新，保留文件名与 ID，使已有角色关联继续有效。 */
     suspend fun ensureDefaultPreset(context: Context, fallbackName: String = OnlineChatDefaults.PRESET_NAME): String = withContext(Dispatchers.IO) {
         writeMutex.withLock {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -34,14 +34,14 @@ object PresetRepository {
                 ?: fallbackName.also { value -> prefs.edit().putString(KEY_DEFAULT_NAME, value).apply() }
             val file = JsonFileDir.file(context, PRESETS_DIR, name)
             var root = if (file.exists()) JSONObject(file.readText()) else JSONObject()
-            val emptyDefault = root.length() == 0 || (root.length() == 1 && root.has(RESOURCE_ID_FIELD))
-            if (emptyDefault) {
+            val bundled = OnlineChatDefaults.readPreset(context)
+            val needsUpdate = OnlineChatDefaults.needsUpdate(root, bundled)
+            if (needsUpdate) {
                 val previousId = root.resourceId()
-                // 只填充原来的空白默认预设，保留资源 ID 和用户已经编辑的预设。
-                root = OnlineChatDefaults.readPreset(context)
+                root = bundled
                 if (previousId.isNotBlank()) root.put(RESOURCE_ID_FIELD, previousId)
             }
-            if (emptyDefault || root.resourceId().isBlank()) {
+            if (needsUpdate || root.resourceId().isBlank()) {
                 root.ensureResourceId()
                 JsonFileDir.atomicWriteText(file, root.toString(2))
             }

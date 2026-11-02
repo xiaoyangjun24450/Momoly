@@ -24,16 +24,23 @@ object WorldBookRepository {
 
     fun worldDir(context: Context): File = JsonFileDir.dir(context, WORLD_DIR)
 
-    /** 共用规则按固定 ID 查找；重命名和编辑后仍使用原书，不覆盖用户的修改。 */
+    /** 共用规则按固定 ID 查找并随 APP 内容版本更新；保留重命名后的文件和关联。 */
     suspend fun ensureDefaultBook(context: Context): WorldBook = withContext(Dispatchers.IO) {
         writeMutex.withLock {
             // 先查找已安装的规则书，避免每次启动都创建副本。
             val existing = findDefaultBookFile(context)
+            val bundled = OnlineChatDefaults.readWorldBook(context)
             if (existing != null) {
-                return@withLock WorldBookParser.parse(JSONObject(existing.readText()), existing.nameWithoutExtension)
+                var root = JSONObject(existing.readText())
+                if (OnlineChatDefaults.needsUpdate(root, bundled)) {
+                    bundled.put("name", root.optString("name", existing.nameWithoutExtension))
+                    root = bundled
+                    JsonFileDir.atomicWriteText(existing, root.toString(2))
+                }
+                return@withLock WorldBookParser.parse(root, existing.nameWithoutExtension)
             }
             // 首次安装从随应用打包的酒馆 JSON 创建独立资源，不改角色所属世界。
-            val root = OnlineChatDefaults.readWorldBook(context)
+            val root = bundled
             val title = root.getString("name")
             val name = JsonFileDir.uniqueName(context, WORLD_DIR, title, title)
             JsonFileDir.atomicWriteText(JsonFileDir.file(context, WORLD_DIR, name), root.toString(2))

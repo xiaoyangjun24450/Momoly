@@ -66,10 +66,11 @@ object PromptContextLoader {
             }
         val books = listOf(defaultBook) + linkedBooks
         val preset = try {
+            // 已关联默认 ID 的角色也必须先更新内置资源，不能只在未关联分支初始化。
+            val defaultName = PresetRepository.ensureDefaultPreset(context)
             // 没有关联预设的已有角色也使用默认聊天方式；自选预设继续按原关联读取。
             if (card.linkedPresetId.isBlank()) {
-                val name = PresetRepository.ensureDefaultPreset(context)
-                PresetRepository.load(context, name)
+                PresetRepository.load(context, defaultName)
             } else {
                 PresetRepository.loadById(context, card.linkedPresetId)
             }

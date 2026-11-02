@@ -128,7 +128,7 @@ class OnlineChatDefaultsTest {
         val custom = JSONObject().put("momoly_id", "custom-default").put("temperature", 0.3)
         File(PresetRepository.presetsDir(context), "Custom.json").writeText(custom.toString())
 
-        PresetRepository.ensureDefaultPreset(context, "Custom")
+        PresetRepository.ensureDefaultPreset(context)
         val shared = WorldBookRepository.ensureDefaultBook(context)
         assertEquals(custom.toString(), JSONObject(PresetRepository.exportJsonBytes(context, "Custom").decodeToString()).toString())
         assertEquals(userBook.id, WorldBookRepository.load(context, title).id)
@@ -136,5 +136,85 @@ class OnlineChatDefaultsTest {
         WorldBookRepository.delete(context, shared.name)
         WorldBookRepository.clear(context)
         assertEquals(listOf(shared.name), WorldBookRepository.listNames(context))
+    }
+
+    @Test
+    fun upgradesExistingDefaultsBeforeLoadingLinkedCharactersWithoutDuplicatingResources() = runBlocking {
+        val presetName = PresetRepository.ensureDefaultPreset(context)
+        val preset = PresetRepository.load(context, presetName)
+        val book = WorldBookRepository.ensureDefaultBook(context)
+        assertTrue(PresetRepository.rename(context, presetName, "原默认预设"))
+        assertTrue(WorldBookRepository.rename(context, book.name, "原共用规则"))
+        val presetFile = File(PresetRepository.presetsDir(context), "原默认预设.json")
+        val bookFile = File(WorldBookRepository.worldDir(context), "原共用规则.json")
+        val oldPreset = JSONObject(presetFile.readText()).apply {
+            getJSONObject("extensions").getJSONObject("momoly").put("version", 2)
+            put("prompts", JSONArray().put(JSONObject()
+                .put("identifier", "main").put("role", "system").put("content", "旧默认内容")))
+            put("prompt_order", JSONArray().put(JSONObject().put("character_id", 100001)
+                .put("order", JSONArray().put(JSONObject().put("identifier", "main").put("enabled", true)))))
+        }
+        val oldBook = JSONObject(bookFile.readText()).apply {
+            getJSONObject("extensions").getJSONObject("momoly").put("version", 1)
+            getJSONObject("entries").getJSONObject("0").put("content", "旧共用规则")
+        }
+        presetFile.writeText(oldPreset.toString())
+        bookFile.writeText(oldBook.toString())
+        val custom = PresetRepository.create(context, "独立预设")
+        val customBytes = PresetRepository.exportJsonBytes(context, custom.name).decodeToString()
+        CharacterRepository.create(context, "已有关联")
+        CharacterRepository.updateJson(context, "已有关联") {
+            it.put("linked_preset_id", preset.id)
+            it.put("enabled_world_book_ids", JSONArray().put(book.id))
+        }
+
+        val loaded = PromptContextLoader.load(context, "已有关联")
+        val loadedPreset = requireNotNull(loaded.preset)
+        assertTrue(loaded.failures.isEmpty())
+        assertEquals(preset.id, loadedPreset.id)
+        assertEquals("原默认预设", loadedPreset.name)
+        assertTrue(loadedPreset.prompts.any { it.identifier == "momoly_current_turn" && it.enabled })
+        assertFalse(loadedPreset.prompts.any { it.content.contains("旧默认内容") })
+        // 从不含经典段落的版本 2 升级后，验证它真正进入发送前的系统提示，而非只存进 JSON。
+        val built = PromptBuilder.build(
+            card = loaded.card,
+            userName = "用户",
+            preset = loadedPreset,
+            worldBooks = loaded.worldBooks,
+        )
+        assertTrue(built.preHistory.first().content.contains("上德不德，是以有德"))
+        assertTrue(built.preHistory.first().content.contains("观天之道，执天之行"))
+        assertTrue(built.preHistory.any { it.content.contains("当前是 已有关联 与 用户") })
+        assertTrue(built.postHistory.any { it.content.contains("只输出 已有关联 会实际发送的正文") })
+        assertEquals(book.id, loaded.worldBooks.single().id)
+        assertEquals("原共用规则", loaded.worldBooks.single().name)
+        assertTrue(loaded.worldBooks.single().entries.getValue(0).content.contains("信息差与事实"))
+        assertEquals(2, PresetRepository.listNames(context).size)
+        assertEquals(1, WorldBookRepository.listNames(context).size)
+        assertEquals(customBytes, PresetRepository.exportJsonBytes(context, custom.name).decodeToString())
+
+        // 再次进入聊天不重复写文件或新增副本。
+        val presetAfter = presetFile.readText()
+        val bookAfter = bookFile.readText()
+        PromptContextLoader.load(context, "已有关联")
+        assertEquals(presetAfter, presetFile.readText())
+        assertEquals(bookAfter, bookFile.readText())
+    }
+
+    @Test
+    fun upgradesUnversionedDefaultButDoesNotDowngradeNewerContent() = runBlocking {
+        val file = File(PresetRepository.presetsDir(context), "Default.json")
+        file.writeText("""{"momoly_id":"legacy-default","temperature":0.3}""")
+        PresetRepository.ensureDefaultPreset(context, "Default")
+        assertEquals("legacy-default", PresetRepository.load(context, "Default").id)
+        assertTrue(PresetRepository.load(context, "Default").prompts.any { it.identifier == "momoly_current_turn" })
+
+        val newer = JSONObject(file.readText()).apply {
+            getJSONObject("extensions").getJSONObject("momoly").put("version", 999)
+            put("temperature", 0.4)
+        }.toString()
+        file.writeText(newer)
+        PresetRepository.ensureDefaultPreset(context)
+        assertEquals(newer, file.readText())
     }
 }
