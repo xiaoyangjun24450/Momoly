@@ -23,6 +23,22 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SendChatMessageUseCaseTest {
+    @Test fun quotedReplyIsPersistedSeparatelyBeforeGeneration() = runTest {
+        val repository = InMemoryChatRepository(original)
+        val quote = me.rerere.momoly.data.chat.MessageQuote(1, "assistant", "林夏", "Greeting")
+        val result = SendChatMessageUseCase(repository, attachments())(
+            currentSession = { original }, text = "回答引用", pendingAttachments = emptyList(),
+            onPrepared = { _, message -> assertEquals(quote, message.replyTo) },
+            generate = { id ->
+                val saved = repository.get(id)!!.messages.last()
+                assertEquals("回答引用", saved.content)
+                assertEquals(quote, saved.replyTo)
+            }, replyTo = quote,
+        )
+        assertSame(SendChatMessageResult.Completed, result)
+        assertNull(repository.get(original.id)!!.messages.first().replyTo)
+    }
+
     private val original = ChatSession(
         id = "session",
         messages = listOf(ChatMessage(role = "assistant", content = "Greeting", ts = 1)),

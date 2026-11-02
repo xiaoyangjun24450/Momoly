@@ -331,6 +331,9 @@ object ChatRepository {
     )
 
     private fun MessageEntity.toModel() = ChatMessage(
+        replyTo = if (replyToJson.isBlank()) null else runCatching {
+            json.decodeFromString<MessageQuote>(replyToJson)
+        }.getOrNull(),
         role = role,
         content = content,
         dataJson = dataJson.ifBlank { "{}" },
@@ -363,6 +366,7 @@ object ChatRepository {
     )
 
     private fun ChatMessage.toEntity(sessionId: String) = MessageEntity(
+        replyToJson = replyTo?.let { json.encodeToString(it) }.orEmpty(),
         sessionId = sessionId,
         ts = ts,
         role = role,

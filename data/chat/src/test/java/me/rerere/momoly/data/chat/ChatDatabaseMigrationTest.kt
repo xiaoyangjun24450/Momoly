@@ -58,6 +58,7 @@ class ChatDatabaseMigrationTest {
                 ChatDatabase.MIGRATION_11_12,
                 ChatDatabase.MIGRATION_12_13,
                 ChatDatabase.MIGRATION_13_14,
+                ChatDatabase.MIGRATION_14_15,
             )
             .allowMainThreadQueries()
             .build()
@@ -69,6 +70,7 @@ class ChatDatabaseMigrationTest {
             assertEquals(listOf(0), session?.messages?.map(MessageEntity::cachedTokens))
             assertEquals(listOf(""), session?.messages?.map(MessageEntity::requestSnapshotsJson))
             assertEquals(listOf(""), session?.messages?.map(MessageEntity::dataJson))
+            assertEquals(listOf(""), session?.messages?.map(MessageEntity::replyToJson))
             assertEquals(listOf(false), session?.messages?.map(MessageEntity::isHidden))
         } finally {
             migrated.close()

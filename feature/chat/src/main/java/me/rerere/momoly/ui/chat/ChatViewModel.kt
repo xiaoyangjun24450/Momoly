@@ -244,6 +244,7 @@ class ChatViewModel(
             canSelect = { !generating },
             onFailure = ::handleOperationFailure,
             onSelected = { id ->
+                input.setReply(null)
                 emitFrontendEvent("chat_id_changed", JSONObject().put("chat_id", id).toString())
             },
         )
@@ -409,6 +410,21 @@ class ChatViewModel(
             is ChatAction.SetInputText -> input.text = action.text
             ChatAction.CancelEdit -> input.cancelEditing()
             is ChatAction.StartEdit -> startEdit(action.message)
+            is ChatAction.ReplyTo -> {
+                val message = action.message
+                if (input.editingTimestamp != null) input.cancelEditing()
+                val text = message.content.ifBlank {
+                    message.files.joinToString { it.name }.ifBlank { "[图片]" }
+                }
+                val count = text.codePointCount(0, text.length)
+                input.setReply(me.rerere.momoly.data.chat.MessageQuote(
+                    messageTs = message.ts, role = message.role,
+                    author = if (message.role == "user") userName else currentCard?.name ?: conversation.current?.charName.orEmpty(),
+                    content = text.substring(0, text.offsetByCodePoints(0, minOf(count, 1_000))),
+                    truncated = count > 1_000,
+                ))
+            }
+            ChatAction.CancelReply -> input.setReply(null)
             is ChatAction.SwitchAlternative -> switchAlt(action.message, action.direction)
             is ChatAction.DeleteMessage -> deleteMessage(action.timestamp)
             is ChatAction.DeleteAllVersions -> deleteAllVersions(action.timestamp)

@@ -27,8 +27,12 @@ class ChatReplyTextTest {
     @Test fun neverHardCutsUnpunctuatedTextAndBoundsDelays() {
         val long = "很长的没有标点的正文".repeat(100)
         assertEquals(listOf(long), ChatReplyText.split(long))
-        assertEquals(1_500L, ChatReplyText.gapMillis("好"))
-        assertEquals(6_000L, ChatReplyText.gapMillis(long))
+        assertEquals(500L, ChatReplyText.gapMillis("好", 500))
+        assertEquals(1_000L, ChatReplyText.gapMillis("好", 1_000))
+        assertEquals(long.length * 750L, ChatReplyText.gapMillis(long))
+        assertEquals(10_000L, ChatReplyText.gapMillis("字".repeat(20), 500))
+        assertEquals(20_000L, ChatReplyText.gapMillis("字".repeat(20), 1_000))
+        assertEquals(1_500L, ChatReplyText.gapMillis("好 😀\n", 750))
         assertTrue(ChatReplyText.split("，。！？").isEmpty())
     }
 }

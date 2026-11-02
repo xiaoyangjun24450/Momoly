@@ -54,9 +54,10 @@ object ConversationOps {
         text: String,
         images: List<String> = emptyList(),
         files: List<MsgFile> = emptyList(),
+        replyTo: me.rerere.momoly.data.chat.MessageQuote? = null,
     ): ChatSession = s.copy(
         messages = s.messages + ChatMessage(
-            role = "user", content = text, ts = nextTs(s), images = images, files = files),
+            role = "user", content = text, ts = nextTs(s), images = images, files = files, replyTo = replyTo),
         updatedAt = System.currentTimeMillis(),
     )
 

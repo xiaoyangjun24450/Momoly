@@ -27,170 +27,37 @@ import androidx.compose.ui.res.stringResource
 import me.rerere.momoly.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.CircleStop
+import com.composables.icons.lucide.Reply
 import com.composables.icons.lucide.Copy
-import com.composables.icons.lucide.FileJson
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.RotateCcw
-import com.composables.icons.lucide.SquarePen
-import com.composables.icons.lucide.Trash2
-import com.composables.icons.lucide.Volume2
 
-// 消息长按菜单：常显图标行取消后，复制/重答/朗读等操作全部集中到这里，
-// 因此顺序按使用频率排（复制最前，删除最末）。
-
+// Only the three user-facing actions belong in the message menu.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessageMenu(
     onDismiss: () -> Unit,
-    onCopy: () -> Unit = {},
-    onRegenerate: (() -> Unit)? = null,
-    onSpeak: (() -> Unit)? = null,
-    speaking: Boolean = false,
-    onSelectCopy: () -> Unit = {},
-    onViewRequestBody: () -> Unit = {},
-    onEdit: () -> Unit = {},
-    onDeleteCurrentVersion: () -> Unit = {},
-    onDeleteAllVersions: () -> Unit = {},
-    hasMultipleVersions: Boolean = true,
-    canViewRequestBody: Boolean = false,
+    onCopy: () -> Unit,
+    onSelectCopy: () -> Unit,
+    onReply: () -> Unit,
 ) {
     val sheetState = rememberBottomSheetState(
         initialValue = SheetValue.Hidden,
         enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
     )
-
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // 复制正文：只复制当前版本内容，与旧的常显复制图标一致
-            MenuRow(
-                icon = {
-                    Icon(
-                        Lucide.Copy,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                },
-                label = stringResource(R.string.copy),
-                onClick = onCopy
-            )
-
-            MenuRow(
-                icon = {
-                    Icon(
-                        Lucide.Copy,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                },
-                label = stringResource(R.string.select_copy),
-                onClick = { onSelectCopy() }
-            )
-
-            // 重新生成：null 表示当前消息不可重答（例如正在生成的那条）
-            if (onRegenerate != null) {
-                MenuRow(
-                    icon = {
-                        Icon(
-                            Lucide.RotateCcw,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    },
-                    label = stringResource(R.string.regenerate),
-                    onClick = onRegenerate
-                )
-            }
-
-            // 朗读/停止朗读：播放中切换成停止图标，文案同步切换
-            if (onSpeak != null) {
-                MenuRow(
-                    icon = {
-                        Icon(
-                            if (speaking) Lucide.CircleStop else Lucide.Volume2,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    },
-                    label = stringResource(if (speaking) R.string.stop_speaking else R.string.speak),
-                    onClick = onSpeak
-                )
-            }
-
-            if (canViewRequestBody) {
-                MenuRow(
-                    icon = {
-                        Icon(
-                            Lucide.FileJson,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.onSurface,
-                        )
-                    },
-                    label = stringResource(R.string.request_body),
-                    onClick = onViewRequestBody,
-                )
-            }
-
-            MenuRow(
-                icon = {
-                    Icon(
-                        Lucide.SquarePen,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                },
-                label = stringResource(R.string.edit),
-                onClick = { onEdit() }
-            )
-
-            // 删除当前版本
-            MenuRow(
-                icon = {
-                    Icon(
-                        Lucide.Trash2,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                },
-                label = stringResource(R.string.delete_current_version),
-                labelColor = MaterialTheme.colorScheme.error,
-                onClick = { onDeleteCurrentVersion() }
-            )
-
-            // 删除全部版本，仅多版本时显示
-            if (hasMultipleVersions) {
-                MenuRow(
-                    icon = {
-                        Icon(
-                            Lucide.Trash2,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    },
-                    label = stringResource(R.string.delete_all_versions),
-                    labelColor = MaterialTheme.colorScheme.error,
-                    onClick = { onDeleteAllVersions() }
-                )
-            }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            MenuRow(icon = { Icon(Lucide.Copy, null, Modifier.size(24.dp)) },
+                label = stringResource(R.string.copy), onClick = onCopy)
+            MenuRow(icon = { Icon(Lucide.Copy, null, Modifier.size(24.dp)) },
+                label = stringResource(R.string.select_copy), onClick = onSelectCopy)
+            MenuRow(icon = { Icon(Lucide.Reply, null, Modifier.size(24.dp)) },
+                label = stringResource(R.string.reply_message), onClick = onReply)
         }
     }
 }

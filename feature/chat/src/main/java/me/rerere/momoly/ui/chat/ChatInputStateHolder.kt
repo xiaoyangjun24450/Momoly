@@ -7,11 +7,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import me.rerere.momoly.extension.QuickReply
 import me.rerere.momoly.data.chat.ChatMessage
+import me.rerere.momoly.data.chat.MessageQuote
 
 data class ChatInputState(
     val attachments: List<Attachment>,
     val editingTimestamp: Long?,
     val quickReplies: List<QuickReply>,
+    val replyTo: MessageQuote? = null,
 )
 
 /** 持有需要跨重组和 Activity 重建保留的输入状态。 */
@@ -27,6 +29,11 @@ class ChatInputStateHolder {
     var editingMessage: ChatMessage? = null
         private set
 
+    var replyTo by mutableStateOf<MessageQuote?>(null)
+        private set
+
+    fun setReply(quote: MessageQuote?) { replyTo = quote }
+
     var quickReplies by mutableStateOf<List<QuickReply>>(emptyList())
         private set
 
@@ -39,6 +46,7 @@ class ChatInputStateHolder {
             attachments = attachments,
             editingTimestamp = editingTimestamp,
             quickReplies = quickReplies,
+            replyTo = replyTo,
         )
 
     fun addAttachments(values: List<Attachment>) {
@@ -50,11 +58,13 @@ class ChatInputStateHolder {
     }
 
     fun clearDraft() {
+        replyTo = null
         text = ""
         attachments = emptyList()
     }
 
-    fun restoreDraft(draftText: String, sentAttachments: List<Attachment>) {
+    fun restoreDraft(draftText: String, sentAttachments: List<Attachment>, quote: MessageQuote? = null) {
+        if (replyTo == null) replyTo = quote
         if (draftText.isNotBlank()) {
             text = if (text.isBlank()) draftText else "$draftText\n$text"
         }
@@ -63,6 +73,7 @@ class ChatInputStateHolder {
     }
 
     fun beginEditing(message: ChatMessage) {
+        replyTo = null
         editingMessage = message
         editingTimestamp = message.ts
         text = message.content

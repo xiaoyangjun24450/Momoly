@@ -46,6 +46,7 @@ internal class ChatSendCoordinator(
             return ChatSendOutcome.FILE_TOO_LARGE
         }
         val source = conversation.current ?: ChatSession().also(conversation::replaceCurrent)
+        val replyTo = input.replyTo
         input.clearDraft()
         generation.submitSend(source.id, provider, modelId) {
             when (val result = sendMessage(
@@ -59,10 +60,11 @@ internal class ChatSendCoordinator(
                     }
                 },
                 generate = {},
+                replyTo = replyTo,
             )) {
                 SendChatMessageResult.Completed -> true
                 SendChatMessageResult.AttachmentFailed -> {
-                    input.restoreDraft(text, pendingAttachments)
+                    if (conversation.current?.id == source.id) input.restoreDraft(text, pendingAttachments, replyTo)
                     onFailure(ChatSendFailure.Attachment)
                     false
                 }
@@ -71,7 +73,7 @@ internal class ChatSendCoordinator(
                         if (conversation.current?.id == restored.id) conversation.replacePersistedCurrent(restored)
                     }
                     result.retainedTimestamps?.let(conversation::retainOverlays)
-                    input.restoreDraft(text, pendingAttachments)
+                    if (conversation.current?.id == source.id) input.restoreDraft(text, pendingAttachments, replyTo)
                     SafeLog.error(TAG, "send_message_failed", result.error)
                     onFailure(ChatSendFailure.Send(result.error, result.rollbackFailed))
                     false

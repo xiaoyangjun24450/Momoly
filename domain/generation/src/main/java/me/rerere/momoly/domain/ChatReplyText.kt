@@ -57,8 +57,9 @@ object ChatReplyText {
         return if (merged.size <= 6) merged else merged.take(5) + merged.drop(5).joinToString("\n")
     }
 
-    fun gapMillis(text: String, jitter: Long = 0): Long =
-        (800L + text.codePointCount(0, text.length) * 100L + jitter).coerceIn(1_500L, 6_000L)
+    fun gapMillis(text: String, millisPerCharacter: Long = 750): Long =
+        text.codePoints().filter { !Character.isWhitespace(it) }.count().coerceAtLeast(1) *
+            millisPerCharacter.coerceIn(500, 1_000)
 }
 
 data class InterruptedReplyDraft(val turnId: String, val text: String)

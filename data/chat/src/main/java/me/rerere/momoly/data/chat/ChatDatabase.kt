@@ -67,6 +67,7 @@ internal data class MessageEntity(
     @ColumnInfo(defaultValue = "0") val cachedTokens: Int = 0,
     @ColumnInfo(defaultValue = "0") val generationMs: Long = 0,
     @ColumnInfo(defaultValue = "") val requestSnapshotsJson: String = "",
+    @ColumnInfo(defaultValue = "") val replyToJson: String = "",
 )
 
 internal data class SessionWithMessages(
@@ -322,7 +323,7 @@ internal interface ChatDao {
     suspend fun updatePinned(id: String, pinned: Boolean)
 }
 
-@Database(entities = [SessionEntity::class, MessageEntity::class], version = 14, exportSchema = true)
+@Database(entities = [SessionEntity::class, MessageEntity::class], version = 15, exportSchema = true)
 internal abstract class ChatDatabase : RoomDatabase() {
 
     abstract fun dao(): ChatDao
@@ -360,12 +361,19 @@ internal abstract class ChatDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE messages ADD COLUMN replyToJson TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         private val ALL_MIGRATIONS = arrayOf(
             MIGRATION_9_10,
             MIGRATION_10_11,
             MIGRATION_11_12,
             MIGRATION_12_13,
             MIGRATION_13_14,
+            MIGRATION_14_15,
         )
 
         @Volatile private var instance: ChatDatabase? = null

@@ -165,6 +165,8 @@ internal fun ChatBottomArea(
     quickReplies: List<QuickReply> = emptyList(),
     onQuickReply: (QuickReply) -> Unit = {},
     enterToSend: Boolean = true,
+    replyTo: me.rerere.momoly.data.chat.MessageQuote? = null,
+    onCancelReply: () -> Unit = {},
 ) {
     val colors = weChatColors()
     val hasContent = state.text.isNotBlank() || attachments.isNotEmpty()
@@ -177,6 +179,12 @@ internal fun ChatBottomArea(
                 .navigationBarsPadding()
                 .padding(horizontal = ChatInputBarInset, vertical = 6.dp),
         ) {
+            replyTo?.let { quote ->
+                Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ChatQuote(quote, Modifier.weight(1f))
+                    AppIconButton(Lucide.X, stringResource(R.string.cancel_reply), onCancelReply)
+                }
+            }
             // 快捷回复行：微信式小胶囊，横向滚动，位于输入行上方
             if (quickReplies.isNotEmpty()) {
                 LazyRow(

@@ -30,6 +30,15 @@ internal class SendChatMessageUseCase(
         pendingAttachments: List<Attachment>,
         onPrepared: (ChatSession, ChatMessage) -> Unit,
         generate: suspend (String) -> Unit,
+    ): SendChatMessageResult = invoke(currentSession, text, pendingAttachments, onPrepared, generate, null)
+
+    suspend operator fun invoke(
+        currentSession: () -> ChatSession?,
+        text: String,
+        pendingAttachments: List<Attachment>,
+        onPrepared: (ChatSession, ChatMessage) -> Unit,
+        generate: suspend (String) -> Unit,
+        replyTo: me.rerere.momoly.data.chat.MessageQuote?,
     ): SendChatMessageResult {
         var originalSession: ChatSession? = null
         var createdNewSession = false
@@ -46,6 +55,7 @@ internal class SendChatMessageUseCase(
                 text,
                 persistedAttachments.images,
                 persistedAttachments.files,
+                replyTo = replyTo,
             )
             val userMessage = prepared.messages.last()
             onPrepared(prepared, userMessage)

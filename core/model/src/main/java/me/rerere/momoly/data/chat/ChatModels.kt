@@ -56,6 +56,16 @@ data class MsgFile(
     val path: String = "",
 )
 
+/** Snapshot of the exact bubble/version selected by the user, independent of later edits. */
+@Serializable
+data class MessageQuote(
+    val messageTs: Long,
+    val role: String,
+    val author: String,
+    val content: String,
+    val truncated: Boolean = false,
+)
+
 /** 单条聊天消息。版本相关字段始终镜像 alts[altIdx]（alts 为空表示只有单版本） */
 @Serializable
 data class ChatMessage(
@@ -79,6 +89,7 @@ data class ChatMessage(
     val cachedTokens: Int = 0,       // 本次请求由供应商缓存命中的输入 token
     val generationMs: Long = 0,      // 从发起请求到生成收尾的总用时
     val requestSnapshots: List<ApiRequestSnapshot> = emptyList(), // 当前版本各轮实际请求，不含请求头
+    val replyTo: MessageQuote? = null,
 )
 
 /** 聊天会话：每个角色卡对应独立的聊天列表 */

@@ -305,6 +305,8 @@ internal fun ChatContent(
                             onAction(ChatAction.UseQuickReply(qr))
                         },
                         enterToSend = prefs.enterToSend,
+                        replyTo = input.replyTo,
+                        onCancelReply = { onAction(ChatAction.CancelReply) },
                     )
                 }
             ) { padding ->
@@ -498,6 +500,7 @@ internal fun ChatContent(
                                     if (msg.role == "user") {
                                         UserMsg(
                                             text = msg.content,
+                                            replyTo = msg.replyTo,
                                             timeLabel = timeLabel,
                                             onLongPress = openMenu,
                                             images = msg.images,
@@ -518,6 +521,10 @@ internal fun ChatContent(
                                         }
                                         AIMsg(
                                             msg = msg,
+                                            opening = msg.model.isBlank() && msg.ts == conversation.current?.messageTimestamps?.firstOrNull(),
+                                            onLongPressPart = { part ->
+                                                overlayState.menuTarget = MessageMenuTarget(msg.copy(content = part), msgs, i == msgs.lastIndex)
+                                            },
                                             timeLabel = timeLabel,
                                             onLongPress = openMenu,
                                             onPrevAlt = { switchAltAnchored(-1) },

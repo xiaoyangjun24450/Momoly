@@ -25,7 +25,7 @@ internal class ChatReplyScheduler<T>(
     private val textOf: (T) -> String,
     private val onFailure: (Throwable) -> Unit,
     private val now: () -> Long = { System.nanoTime() / 1_000_000 },
-    private val gap: (String) -> Long = { ChatReplyText.gapMillis(it, Random.nextLong(-200, 201)) },
+    private val gap: (String) -> Long = { ChatReplyText.gapMillis(it, Random.nextLong(500, 1_001)) },
     private val formatDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private class Turn(val sessionId: String, val revision: Long, val acceptedAt: Long) {

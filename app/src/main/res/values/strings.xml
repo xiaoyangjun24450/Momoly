@@ -1,4 +1,6 @@
 <resources>
+    <string name="reply_message">回复</string>
+    <string name="cancel_reply">取消引用</string>
     <string name="home_manage_contact">管理联系人</string>
     <string name="home_reset_contact">重置聊天记录</string>
     <string name="home_delete_contact">删除联系人</string>

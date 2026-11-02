@@ -35,6 +35,8 @@ sealed interface ChatAction {
     data class SetInputText(val text: String) : ChatAction
     data object CancelEdit : ChatAction
     data class StartEdit(val message: ChatMessage) : ChatAction
+    data class ReplyTo(val message: ChatMessage) : ChatAction
+    data object CancelReply : ChatAction
     data class SwitchAlternative(val message: ChatMessage, val direction: Int) : ChatAction
     data class DeleteMessage(val timestamp: Long) : ChatAction
     data class DeleteAllVersions(val timestamp: Long) : ChatAction

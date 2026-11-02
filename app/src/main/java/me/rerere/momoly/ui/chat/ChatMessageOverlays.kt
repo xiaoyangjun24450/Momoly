@@ -29,62 +29,14 @@ internal fun ChatMessageOverlays(
         // ── 消息操作菜单 ──
         val menuTs = menuTarget?.message?.ts
         // 与渲染一致地取目标：overlay（流式/乐观态）优先，回退到内存会话
-        val menuMsg = menuTarget?.message?.let { conversation.overlays[it.ts] ?: it }
+        val menuMsg = menuTarget?.message
         if (menuTs != null && menuMsg != null) {
-            val messageTs = menuTs
-            // 目标消息与事件都在长按时快照，点击时列表可能已变；重答的滚底判断沿用快照，
-            // 保证与改造前气泡下重答图标的语义一致（旧代码用的是当时渲染的 msgs 下标）
-            val messageWindow = menuTarget?.messageWindow.orEmpty()
-            val targetIndex = messageWindow.indexOfFirst { it.ts == messageTs }
-            // 改造前生成中的那条消息不显示操作行（无重答/朗读），菜单同样不提供，
-            // 避免对半截正文操作；生成中其它消息的操作仍由 ViewModel 既有守卫拦截
-            val streamingTarget = generation.running && generation.targetTimestamp == messageTs
-            val onRegenerate: (() -> Unit)? = if (streamingTarget) {
-                null
-            } else {
-                {
-                    val wasLast = menuTarget?.wasLast == true
-                    menuTarget = null
-                    confirmRegenerate(state.settings.confirmRegenerate) {
-                        if (menuMsg.role == "assistant") {
-                            onAction(
-                                ChatAction.RegenerateAssistant(
-                                    timestamp = messageTs,
-                                    scrollToBottom = wasLast,
-                                ),
-                            )
-                        } else {
-                            // 对用户消息重答 = 重答其后的助手回复；回复在中间时原地重答，不滚到底部
-                            val midRegen = targetIndex >= 0 &&
-                                targetIndex + 1 < messageWindow.lastIndex &&
-                                messageWindow[targetIndex + 1].role == "assistant"
-                            onAction(
-                                ChatAction.RegenerateAfterUser(
-                                    timestamp = messageTs,
-                                    scrollToBottom = !midRegen,
-                                ),
-                            )
-                        }
-                    }
-                }
-            }
-            val onSpeak: (() -> Unit)? = if (menuMsg.role == "assistant" && !streamingTarget) {
-                {
-                    menuTarget = null
-                    onAction(ChatAction.SpeakMessage(menuMsg))
-                }
-            } else {
-                null
-            }
             MessageMenu(
                 onDismiss = { menuTarget = null },
                 onCopy = {
                     media.copyText(menuMsg.content)
                     menuTarget = null
                 },
-                onRegenerate = onRegenerate,
-                onSpeak = onSpeak,
-                speaking = profile.speakingTimestamp == menuMsg.ts,
                 onSelectCopy = {
                     val sessionMessages = menuTarget?.messageWindow.orEmpty()
                     val messageIndex = sessionMessages.indexOfFirst { it.ts == menuMsg.ts }
@@ -112,38 +64,10 @@ internal fun ChatMessageOverlays(
                     )
                     menuTarget = null
                 },
-                onViewRequestBody = {
-                    copyPanel = CopyPanel(
-                        title = resources.getString(R.string.request_body),
-                        text = formatRequestSnapshots(menuMsg.requestSnapshots),
-                        lineBatchSize = TEXT_PANEL_LINE_BATCH_SIZE,
-                    )
+                onReply = {
+                    onAction(ChatAction.ReplyTo(menuMsg))
                     menuTarget = null
                 },
-                onEdit = {
-                    onAction(ChatAction.StartEdit(menuMsg))
-                    menuTarget = null
-                },
-                onDeleteCurrentVersion = {
-                    val ts = menuTs
-                    val wasLast = menuTarget?.wasLast == true
-                    confirmDeleteCurrentVersion(state.settings.confirmDeleteCurrentVersion) {
-                        onAction(ChatAction.DeleteMessage(ts))
-                        if (wasLast) onScrollToBottom()
-                    }
-                    menuTarget = null
-                },
-                onDeleteAllVersions = {
-                    val ts = menuTs
-                    val wasLast = menuTarget?.wasLast == true
-                    confirmDeleteAllVersions(state.settings.confirmDeleteAllVersions) {
-                        onAction(ChatAction.DeleteAllVersions(ts))
-                        if (wasLast) onScrollToBottom()
-                    }
-                    menuTarget = null
-                },
-                hasMultipleVersions = menuMsg.alts.size > 1,
-                canViewRequestBody = menuMsg.role == "assistant" && menuMsg.requestSnapshots.isNotEmpty(),
             )
         }
 

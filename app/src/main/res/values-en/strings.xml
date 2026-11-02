@@ -1,4 +1,6 @@
 <resources>
+    <string name="reply_message">Reply</string>
+    <string name="cancel_reply">Cancel reply</string>
     <string name="home_manage_contact">Manage contact</string>
     <string name="home_reset_contact">Reset chat history</string>
     <string name="home_delete_contact">Delete contact</string>

@@ -75,6 +75,7 @@ internal fun UserMsg(
     avatarBitmap: android.graphics.Bitmap? = null,
     userName: String = "",
     renderPrefs: RenderPrefs = RenderPrefs(),
+    replyTo: me.rerere.momoly.data.chat.MessageQuote? = null,
 ) {
     // 头像兜底要显示首字，没有用户名时用本地化的“用户”，避免气泡换成写死的英文
     val fallbackUserName = stringResource(R.string.role_user)
@@ -115,6 +116,7 @@ internal fun UserMsg(
                         )
                     }
                 }
+                replyTo?.let { ChatQuote(it, Modifier.maxWidthFraction(MaxBubbleFraction)) }
             }
             Spacer(Modifier.width(Space8))
             WeChatAvatar(
@@ -155,6 +157,8 @@ internal fun AIMsg(
     onSelectChatMessageSwipe: (Int, Int) -> Unit = { _, _ -> },
     onReplaceVariables: (String, Map<String, String>) -> Unit = { _, _ -> },
     rpcCall: FrontendRpcCall = { method, _ -> error("Frontend RPC method is unavailable: $method") },
+    opening: Boolean = false,
+    onLongPressPart: ((String) -> Unit)? = null,
 ) {
     // 有生成图片时图片就是整条回复（沿用旧行为），此时附件块自己承接长按
     val showText = msg.images.isEmpty()
@@ -181,34 +185,40 @@ internal fun AIMsg(
                     }
                 }
                 // 只停在思考阶段的消息没有正文，空气泡没有意义，直接不渲染
+                val parts = remember(msg.content, opening) {
+                    if (opening) me.rerere.momoly.domain.ChatReplyText.split(msg.content).ifEmpty { listOf(msg.content) }
+                    else listOf(msg.content)
+                }
                 if (showText && msg.content.isNotBlank()) {
-                    WeChatBubble(
-                        fromMe = false,
-                        modifier = Modifier.maxWidthFraction(MaxBubbleFraction),
-                        onLongPress = onLongPress,
-                    ) {
-                        MessageContent(
-                            content = msg.content,
-                            isStreaming = false,
-                            textStyle = weChatMessageTextStyle(fromMe = false, scale = scale),
-                            regexScripts = regexScripts,
-                            depth = depth,
-                            userName = userName,
-                            charName = charName,
-                            renderPrefs = renderPrefs,
-                            chatMessagesJson = chatMessagesJson,
-                            frontendContextJson = frontendContextJson,
-                            localVariablesJson = localVariablesJson,
-                            globalVariablesJson = globalVariablesJson,
-                            onSetInputText = onSetInputText,
-                            onSetChatMessage = onSetChatMessage,
-                            onSelectChatMessageSwipe = onSelectChatMessageSwipe,
-                            onReplaceVariables = onReplaceVariables,
-                            rpcCall = rpcCall,
-                            // 微信气泡按内容收缩：不 fillMaxWidth，但保留 Markdown 段落间距
-                            fillWidth = false,
-                            blockSpacing = 6.dp,
-                        )
+                    for (part in parts) {
+                        WeChatBubble(
+                            fromMe = false,
+                            modifier = Modifier.maxWidthFraction(MaxBubbleFraction),
+                            onLongPress = { onLongPressPart?.invoke(part) ?: onLongPress() },
+                        ) {
+                            MessageContent(
+                                content = part,
+                                isStreaming = false,
+                                textStyle = weChatMessageTextStyle(fromMe = false, scale = scale),
+                                regexScripts = regexScripts,
+                                depth = depth,
+                                userName = userName,
+                                charName = charName,
+                                renderPrefs = renderPrefs,
+                                chatMessagesJson = chatMessagesJson,
+                                frontendContextJson = frontendContextJson,
+                                localVariablesJson = localVariablesJson,
+                                globalVariablesJson = globalVariablesJson,
+                                onSetInputText = onSetInputText,
+                                onSetChatMessage = onSetChatMessage,
+                                onSelectChatMessageSwipe = onSelectChatMessageSwipe,
+                                onReplaceVariables = onReplaceVariables,
+                                rpcCall = rpcCall,
+                                // 微信气泡按内容收缩：不 fillMaxWidth，但保留 Markdown 段落间距
+                                fillWidth = false,
+                                blockSpacing = 6.dp,
+                            )
+                        }
                     }
                 }
                 // 引用来源胶囊卡不是思考过程，保留；聚合本条消息全部搜索调用并按 URL 去重
