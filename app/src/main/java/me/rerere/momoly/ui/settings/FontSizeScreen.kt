@@ -38,6 +38,7 @@ import me.rerere.momoly.data.chat.ChatMessage
 import me.rerere.momoly.ui.chat.AIMsg
 import me.rerere.momoly.ui.chat.UserMsg
 import me.rerere.momoly.ui.components.AppTopBar
+import me.rerere.momoly.ui.theme.ProvideWeChatColors
 
 private data class ScalePreset(val labelResId: Int, val scale: Float)
 
@@ -71,11 +72,13 @@ fun FontSizeScreen(onBack: () -> Unit, currentScale: Float = 1.0f) {
         containerColor = MaterialTheme.colorScheme.background,
         topBar = { AppTopBar(stringResource(R.string.font_size), onBack) }
     ) { padding ->
+        // 预览气泡按当前明暗取微信色板，深色模式下不会出现浅色气泡
+        ProvideWeChatColors {
         Column(
             Modifier.fillMaxSize().padding(padding),
         ) {
             // 预览直接复用聊天页的 UserMsg / AIMsg，喂真实的头像与字号，
-            // 保证与实际渲染（含展开思考、工具栏交互）永远一致，不再维护一份假组件
+            // 保证与实际微信气泡渲染永远一致，不再维护一份假组件
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
@@ -87,7 +90,8 @@ fun FontSizeScreen(onBack: () -> Unit, currentScale: Float = 1.0f) {
 
                 UserMsg(
                     text = stringResource(R.string.preview_user_text),
-                    onCopy = {}, onRegenerate = {}, onMore = {},
+                    timeLabel = null,
+                    onLongPress = {},
                     scale = selectedScale,
                     avatarBitmap = preview.avatar,
                 )
@@ -99,8 +103,8 @@ fun FontSizeScreen(onBack: () -> Unit, currentScale: Float = 1.0f) {
                         reasoning = stringResource(R.string.preview_ai_reasoning),
                         reasoningMs = 2800,
                     ),
-                    isStreaming = false,
-                    onCopy = {}, onRegenerate = {}, onMore = {},
+                    timeLabel = null,
+                    onLongPress = {},
                     scale = selectedScale,
                     charAvatarBitmap = preview.avatar,
                 )
@@ -156,6 +160,7 @@ fun FontSizeScreen(onBack: () -> Unit, currentScale: Float = 1.0f) {
                     textAlign = TextAlign.Center,
                 )
             }
+        }
         }
     }
 }

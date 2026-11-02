@@ -100,9 +100,13 @@ internal fun rememberChatFrontendBindings(
     val global = remember(state.globalVariables) { encodeFrontendVariables(state.globalVariables) }
     val userAvatar = remember(profile.userAvatar) { profile.userAvatar.toFrontendDataUrl() }
     val characterAvatar = remember(conversation.characterImage) { conversation.characterImage.toFrontendDataUrl() }
-    return ChatFrontendBindings(
+    return remember(
         conversation, profile, messages, messageIds, messagesJson, local, global, userAvatar, characterAvatar, onAction,
-    )
+    ) {
+        ChatFrontendBindings(
+            conversation, profile, messages, messageIds, messagesJson, local, global, userAvatar, characterAvatar, onAction,
+        )
+    }
 }
 
 internal fun encodeChatFrontendMessages(

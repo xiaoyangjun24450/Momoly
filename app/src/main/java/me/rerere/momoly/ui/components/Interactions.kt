@@ -59,6 +59,22 @@ fun Modifier.noRippleClickable(
     onClick = onClick,
 )
 
+/**
+ * 无波纹长按点击：聊天气泡用。微信式按压不需要 Material 波纹，而气泡是自绘圆角路径，
+ * 波纹会从圆角外溢；这里与 [appClickable] 的区别只有“不带 indication”。
+ */
+fun Modifier.appClickableNoIndication(
+    onClick: () -> Unit = {},
+    enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
+): Modifier = combinedClickable(
+    interactionSource = null,
+    indication = null,
+    enabled = enabled,
+    onLongClick = onLongClick,
+    onClick = onClick,
+)
+
 /** 拖拽排序抬起时的统一缩放值（越小抬起感越强）。 */
 private const val DragLiftScale = 0.95f
 

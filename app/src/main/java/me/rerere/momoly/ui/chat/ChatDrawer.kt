@@ -3,7 +3,6 @@ package me.rerere.momoly.ui.chat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,19 +12,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -42,22 +42,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.Bolt
+import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.ImagePlus
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.PencilLine
 import com.composables.icons.lucide.Pin
 import com.composables.icons.lucide.RefreshCw
 import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Smile
 import com.composables.icons.lucide.Trash2
-import com.composables.icons.lucide.UserPen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -68,9 +67,17 @@ import me.rerere.momoly.ui.components.AppIconButton
 import me.rerere.momoly.ui.components.AppTextArea
 import me.rerere.momoly.ui.components.Space12
 import me.rerere.momoly.ui.components.Space16
-import me.rerere.momoly.ui.components.Space4
 import me.rerere.momoly.ui.components.Space8
 import me.rerere.momoly.ui.components.appClickable
+import me.rerere.momoly.ui.theme.WeChatAvatar
+import me.rerere.momoly.ui.theme.weChatColors
+import me.rerere.momoly.ui.theme.weChatTimeLabel
+
+/** 微信会话行的几何：48dp 头像，文本列与头像间距 12dp，分隔线对齐文本左边缘 */
+private val DrawerRowStartPadding = 12.dp
+private val DrawerAvatarSize = 48.dp
+private val DrawerAvatarTextGap = 12.dp
+private val DrawerDividerInset = DrawerRowStartPadding + DrawerAvatarSize + DrawerAvatarTextGap
 
 /** 根据当前小时返回对应的问候语字符串资源 ID */
 private fun greetingResId(): Int {
@@ -108,7 +115,6 @@ fun ChatDrawerContent(
 
     var userName by remember { mutableStateOf(initialProfile.name) }
     var personaDescription by remember { mutableStateOf(initialProfile.description) }
-    var avatarColor by remember { mutableStateOf(Color(initialProfile.avatarColor.toULong())) }
     var avatarBitmap by remember { mutableStateOf(initialProfile.avatar) }
     var showAvatarDialog by remember { mutableStateOf(false) }
     var showNameDialog by remember { mutableStateOf(false) }
@@ -136,6 +142,16 @@ fun ChatDrawerContent(
         }
     }
 
+    val colors = weChatColors()
+    // 微信搜索框浅色 #F7F7F7、深色 #2C2C2E，正好是这两个令牌；用色板自身判断明暗，不看主题
+    val searchFieldBackground = if (colors.listBackground.luminance() < 0.5f) {
+        colors.inputFieldBackground
+    } else {
+        colors.inputBarBackground
+    }
+    // 时间分隔里的“昨天”由资源提供，其余（时刻/星期/日期）交给 weChatTimeLabel
+    val yesterdayLabel = stringResource(R.string.time_yesterday)
+
     if (showAvatarDialog) {
         AlertDialog(
             onDismissRequest = { showAvatarDialog = false },
@@ -145,10 +161,9 @@ fun ChatDrawerContent(
                     verticalArrangement = Arrangement.spacedBy(Space12)) {
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Space12)) {
-                        AvatarCircle(
+                        WeChatAvatar(
                             bitmap = avatarBitmap,
-                            color = avatarColor,
-                            icon = Lucide.UserPen,
+                            label = userName.ifBlank { "user" },
                             size = 48.dp,
                         )
                         Text(userName.ifBlank { "user" },
@@ -237,81 +252,82 @@ fun ChatDrawerContent(
         )
     }
 
+    // 微信会话列表：整块白/深色底铺满抽屉，不再用外层大 padding 的卡片观感
     Column(
         Modifier.width(300.dp).fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .background(colors.listBackground)
             .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(Space16),
-        verticalArrangement = Arrangement.spacedBy(Space16),
+            .navigationBarsPadding(),
     ) {
         // ── 用户资料 ──
         Row(
+            Modifier.fillMaxWidth()
+                .padding(start = Space16, end = Space8, top = 12.dp, bottom = Space8),
             horizontalArrangement = Arrangement.spacedBy(Space8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(40.dp).clip(CircleShape).clickable { showAvatarDialog = true }) {
-                AvatarCircle(bitmap = avatarBitmap, color = avatarColor,
-                    icon = Lucide.UserPen, size = 40.dp)
+            Box(
+                Modifier.size(DrawerAvatarSize)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { showAvatarDialog = true },
+            ) {
+                WeChatAvatar(
+                    bitmap = avatarBitmap,
+                    label = userName.ifBlank { "user" },
+                    size = DrawerAvatarSize,
+                )
             }
-            Column(Modifier.weight(1f)) {
-                Row(Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Space4),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(userName.ifBlank { "user" },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f, fill = false),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    AppIconButton(
-                        icon = Lucide.PencilLine,
-                        contentDescription = stringResource(R.string.edit),
-                        onClick = { showNameDialog = true },
-                        size = 32.dp,
-                        iconSize = 16.dp,
-                    )
-                }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(userName.ifBlank { "user" },
+                    fontSize = 16.sp,
+                    lineHeight = 22.sp,
+                    color = colors.incomingText,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(stringResource(greetingResId()),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    color = colors.secondaryText,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            AppIconButton(
+                icon = Lucide.PencilLine,
+                contentDescription = stringResource(R.string.edit),
+                onClick = { showNameDialog = true },
+                size = 32.dp,
+                iconSize = 16.dp,
+                tint = colors.iconTint,
+            )
         }
 
         // ── 搜索入口 ──
         Row(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable { onSearch() }
-                .padding(horizontal = Space12, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(Space8),
+            Modifier.padding(start = Space12, end = Space12, bottom = Space8)
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(searchFieldBackground)
+                .clickable { onSearch() },
+            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Lucide.Search, null, Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Lucide.Search, null, Modifier.size(16.dp), tint = colors.secondaryText)
+            Spacer(Modifier.width(6.dp))
             Text(stringResource(R.string.search_chats),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                fontSize = 14.sp, color = colors.secondaryText, maxLines = 1)
         }
 
-        // ── 角色卡列表（原聊天记录位置） ──
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space4)) {
-            item {
-                Text(stringResource(R.string.characters),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = Space4))
-            }
+        // ── 会话列表 ──
+        LazyColumn(Modifier.weight(1f)) {
             if (charactersLoaded && characters.isEmpty()) {
                 item {
                     Text(stringResource(R.string.no_characters),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 6.dp))
+                        fontSize = 13.sp,
+                        color = colors.secondaryText,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp))
                 }
             } else {
-                items(characters, key = { it.fileName }) { character ->
+                itemsIndexed(characters, key = { _, character -> character.fileName }) { index, character ->
                     // 重命名会话对话框的初始标题与旧会话列表一致：会话标题 → 首条用户消息
                     val session = sessions.firstOrNull { it.id == character.sessionId }
                     val defaultTitle = stringResource(R.string.new_chat)
@@ -323,54 +339,60 @@ fun ChatDrawerContent(
                         character = character,
                         selected = character.fileName == currentCharFile,
                         renameTitle = renameTitle,
+                        yesterdayLabel = yesterdayLabel,
                         onOpen = { onOpenCharacter(character.fileName, character.displayName) },
                         onRenameSession = onRenameSession,
                         onPinSession = onPinSession,
                         onRegenerateTitle = onRegenerateTitle,
                         onDeleteSession = onDeleteSession,
                         longPressHaptic = longPressHaptic,
+                        showDivider = index != characters.lastIndex,
                     )
                 }
             }
         }
 
-        // ── 底部导航 ──
-        Row(Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Space8),
-            verticalAlignment = Alignment.CenterVertically) {
+        // ── 底部入口：角色卡 / 设置 ──
+        HorizontalDivider(color = colors.listDivider)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = Space8, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             AppIconButton(
                 icon = Lucide.Smile,
                 contentDescription = stringResource(R.string.characters),
                 onClick = onCharList,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                container = MaterialTheme.colorScheme.surfaceContainerHighest,
+                tint = colors.iconTint,
                 iconSize = 22.dp,
             )
             Spacer(Modifier.weight(1f))
             AppIconButton(
-                icon = Lucide.Bolt,
+                icon = Lucide.Settings,
                 contentDescription = stringResource(R.string.settings),
                 onClick = onSettings,
-                container = MaterialTheme.colorScheme.surfaceContainerHighest,
+                tint = colors.iconTint,
                 iconSize = 22.dp,
             )
         }
     }
 }
 
-/** 角色卡行：头像 + 角色名 + 最新消息预览；有会话时长按弹出会话操作菜单 */
+/** 微信会话列表行：头像 + 角色名 + 最新消息预览 + 右侧时间；有会话时长按弹出会话操作菜单 */
 @Composable
 private fun CharacterCardRow(
     character: DrawerCharacter,
     selected: Boolean,
     renameTitle: String,
+    yesterdayLabel: String,
     onOpen: () -> Unit,
     onRenameSession: (String, String) -> Unit,
     onPinSession: (String, Boolean) -> Unit,
     onRegenerateTitle: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
     longPressHaptic: Boolean,
+    showDivider: Boolean = true,
 ) {
+    val colors = weChatColors()
     var showMenu by remember { mutableStateOf(false) }
     val sessionId = character.sessionId
     val onLongClick: (() -> Unit)? = if (sessionId != null) {
@@ -378,59 +400,81 @@ private fun CharacterCardRow(
     } else {
         null
     }
+    val displayName = character.displayName.ifBlank {
+        stringResource(R.string.default_character)
+    }
+    // updatedAt 为 0 表示这个角色还没开过会话，微信列表里这类行右侧不显示时间
+    val timeLabel = if (character.updatedAt > 0) {
+        weChatTimeLabel(character.updatedAt, yesterdayLabel)
+    } else {
+        ""
+    }
     Box {
-        Row(
+        Column(
             Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(
-                    if (selected) MaterialTheme.colorScheme.secondaryContainer
-                    else Color.Transparent
-                )
+                // 选中态就是微信列表那层浅灰，保持行的扁平感，不再用圆角高亮块
+                .background(if (selected) colors.listDivider else colors.listBackground)
                 .appClickable(
                     onClick = onOpen,
                     onLongClick = onLongClick,
                     hapticFeedbackEnabled = longPressHaptic,
-                )
-                .padding(horizontal = Space8, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Space8),
+                ),
         ) {
-            Box(
-                Modifier.size(40.dp).clip(CircleShape),
-                contentAlignment = Alignment.Center,
+            Row(
+                Modifier.fillMaxWidth()
+                    .padding(start = DrawerRowStartPadding, end = Space12, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                val avatar = character.avatar
-                if (avatar != null) {
-                    Image(
-                        bitmap = avatar.asImageBitmap(),
-                        contentDescription = stringResource(R.string.character_avatar),
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
+                WeChatAvatar(
+                    bitmap = character.avatar,
+                    label = displayName,
+                    size = DrawerAvatarSize,
+                )
+                Column(
+                    Modifier.weight(1f).padding(start = DrawerAvatarTextGap),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        if (character.pinned) {
+                            Icon(Lucide.Pin, stringResource(R.string.pin), Modifier.size(12.dp),
+                                tint = colors.secondaryText)
+                            Spacer(Modifier.width(3.dp))
+                        }
+                        Text(
+                            displayName,
+                            modifier = Modifier.weight(1f),
+                            fontSize = 16.sp,
+                            lineHeight = 22.sp,
+                            color = colors.incomingText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (timeLabel.isNotEmpty()) {
+                            Spacer(Modifier.width(Space8))
+                            Text(timeLabel,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp,
+                                color = colors.timeText,
+                                maxLines = 1)
+                        }
+                    }
+                    Text(
+                        character.lastMessage.ifBlank { stringResource(R.string.no_messages_yet) },
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        color = colors.secondaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                } else {
-                    Icon(Lucide.Smile, null, Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    character.displayName.ifBlank { stringResource(R.string.default_character) },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            if (showDivider) {
+                // 微信的分隔线从文字左边缘起，不切到头像
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = DrawerDividerInset),
+                    thickness = 0.5.dp,
+                    color = colors.listDivider,
                 )
-                Text(
-                    character.lastMessage.ifBlank { stringResource(R.string.no_messages_yet) },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (character.pinned) {
-                Icon(Lucide.Pin, stringResource(R.string.pin), Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (sessionId != null) {
@@ -473,32 +517,6 @@ private fun CharacterCardRow(
                     },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun AvatarCircle(
-    bitmap: android.graphics.Bitmap?,
-    color: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    size: androidx.compose.ui.unit.Dp,
-) {
-    Box(
-        Modifier.size(size).clip(CircleShape)
-            .background(color),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = stringResource(R.string.character_avatar),
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            Icon(icon, null, Modifier.size(size * 0.6f),
-                tint = Color.White)
         }
     }
 }

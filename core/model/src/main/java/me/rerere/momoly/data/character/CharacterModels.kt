@@ -22,6 +22,8 @@ data class CharacterCard(
     val linkedPresetId: String = "",
     val streaming: Boolean = true,  // 流式输出开关
     val depthPrompt: DepthPrompt? = null,  // 角色注入提示（extensions.depth_prompt / Character's Note）
+    /** 所属世界使用导入世界书的原名，不使用磁盘副本的序号或全局规则书。 */
+    val worldName: String = "",
 )
 
 /** 角色注入提示：按深度插入聊天历史。 */

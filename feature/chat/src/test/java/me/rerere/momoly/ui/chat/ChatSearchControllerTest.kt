@@ -41,7 +41,7 @@ class ChatSearchControllerTest {
         override fun clearHistory() { values.clear() }
         override suspend fun search(charFile: String, query: String): List<ChatSearchHit> {
             lastQuery = query
-            return listOf(ChatSearchHit("session", "title", "hit"))
+            return listOf(ChatSearchHit("session", "title", "hit", 123L))
         }
     }
 }

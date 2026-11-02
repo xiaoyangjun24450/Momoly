@@ -59,6 +59,10 @@ object CharacterParser {
 
         return CharacterCard(
             name = name,
+            worldName = d.optString("world_name", "").trim().ifBlank {
+                (d.optJSONObject("character_book") ?: json.optJSONObject("character_book"))
+                    ?.optString("name", "")?.trim().orEmpty()
+            },
             description = d.optString("description", "").trim(),
             personality = d.optString("personality", "").trim(),
             scenario = d.optString("scenario", "").trim(),

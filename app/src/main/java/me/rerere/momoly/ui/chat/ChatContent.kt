@@ -1,6 +1,8 @@
 package me.rerere.momoly.ui.chat
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import me.rerere.momoly.data.world.PlaceholderWorldContextProvider
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,8 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.input.TextFieldState
 import me.rerere.momoly.ui.components.FloatingWindow
-import me.rerere.momoly.ui.components.rememberInteractiveDrawerState
-import me.rerere.momoly.ui.components.InteractiveDrawer
 import me.rerere.momoly.ui.components.rememberModelSelectorState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -60,8 +60,12 @@ import me.rerere.momoly.data.settings.NavButtonsMode
 import me.rerere.momoly.data.settings.ThemeMode
 import me.rerere.momoly.ui.hooks.ImeLazyListAutoScroller
 import me.rerere.momoly.ui.components.Space8
+import me.rerere.momoly.ui.components.Space12
 import me.rerere.momoly.ui.components.Space16
-import me.rerere.momoly.ui.components.vibrate
+import me.rerere.momoly.ui.theme.ProvideWeChatColors
+import me.rerere.momoly.ui.theme.shouldShowWeChatTime
+import me.rerere.momoly.ui.theme.weChatColors
+import me.rerere.momoly.ui.theme.weChatTimeLabel
 
 private typealias Screen = ChatDestination
 
@@ -100,6 +104,7 @@ internal fun ChatContent(
     effects: Flow<ChatEffect>,
     frontendEvents: Flow<ChatFrontendEvent>,
     onAction: (ChatAction) -> Unit,
+    onClearContactHistory: suspend (String) -> Unit = { error("Contact management is unavailable") },
     frontendRpc: FrontendRpcCall = { method, _ -> error("Frontend RPC method is unavailable: $method") },
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeModeChange: (ThemeMode) -> Unit = {},
@@ -111,7 +116,6 @@ internal fun ChatContent(
     val profile = state.profile
     val model = state.model
     val search = state.search
-    val drawerState = rememberInteractiveDrawerState()
     val scope = rememberCoroutineScope()
     // ── 页面返回栈（纯 UI 状态） ──
     val nav = rememberChatNavigationStack(startAtSettings)
@@ -119,9 +123,9 @@ internal fun ChatContent(
     val overlayState = rememberChatOverlayState()
     val modelSelector = rememberModelSelectorState(model.displaySpec ?: "", model.apiConfig.providers)
     var scrollToBottomTrigger by remember { mutableIntStateOf(0) }
-    // 抽屉角色卡列表在每次打开时重载：角色增删改都发生在抽屉关闭期间
-    var drawerCharacterRefresh by remember { mutableIntStateOf(0) }
 
+    val worldSelection = rememberHomeWorldSelection()
+    val worldContext = PlaceholderWorldContextProvider.snapshot(worldSelection.name.orEmpty(), conversation.current?.charFile)
     val ctx = LocalContext.current
     val media = rememberChatMediaActions(onAction)
     val resources = LocalResources.current
@@ -143,19 +147,12 @@ internal fun ChatContent(
             }
         }
     }
-    // 抽屉里可能改了用户名/头像，关抽屉时刷新
-    LaunchedEffect(drawerState.isOpen) {
-        if (!drawerState.isOpen) onAction(ChatAction.ReloadUserProfile)
+    fun goHome() {
+        keyboardController?.hide()
+        nav.clear()
+        nav.add(Screen.Home)
     }
-    // 打开抽屉（按钮或边缘手势）即收起键盘，并让角色卡列表重新加载
-    LaunchedEffect(drawerState) {
-        snapshotFlow { drawerState.isOpen }.collect {
-            if (it) {
-                keyboardController?.hide()
-                drawerCharacterRefresh++
-            }
-        }
-    }
+    BackHandler(enabled = nav.isEmpty(), onBack = ::goHome)
 
     // ── 滚动状态提升到全屏页面切换上方 ──
     // 全屏页面（设置/角色列表等）过渡结束后，整个聊天区域离开组合，
@@ -195,6 +192,24 @@ internal fun ChatContent(
         contentKey = { it.lastOrNull()?.name ?: "chat" },
     ) { backStack ->
     val activeDestination = backStack.lastOrNull()
+    if (activeDestination == Screen.Home) {
+        ProvideWeChatColors {
+            HomeRoute(
+                sessions = conversation.sessions,
+                selection = worldSelection,
+                worldContext = worldContext,
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
+                onNavigate = nav::add,
+                onClearContactHistory = onClearContactHistory,
+                onOpenCharacter = { file, name ->
+                    onAction(ChatAction.OpenCharacter(file, name))
+                    nav.clear()
+                },
+            )
+        }
+        return@PageTransition
+    }
     if (activeDestination != null) {
         ChatDestinationHost(
             destination = activeDestination,
@@ -206,8 +221,7 @@ internal fun ChatContent(
             onNavigate = nav::add,
             onOpenSearchSession = { id ->
                 onAction(ChatAction.OpenSession(id))
-                drawerState.snapClose()
-                navBack()
+                nav.clear()
             },
         )
         return@PageTransition
@@ -222,27 +236,14 @@ internal fun ChatContent(
     // 偏好和字号由 ViewModel 提供；设置页返回时统一刷新快照。
     val prefs = state.settings
     val fontScale = prefs.fontScale
-    val chatBarTitle = if (prefs.showChatBarCharacterName) {
-        (conversation.card?.name ?: conversation.current?.charName ?: "")
-            .ifBlank { stringResource(R.string.default_character) }
-    } else {
-        null
-    }
-    val chatBarSubtitle = if (!prefs.showChatBarModelName) {
-        null
-    } else if (displaySpec == null) {
-        stringResource(R.string.no_model_selected)
-    } else {
-        val modelName = displayProv?.model(displayModelId)?.name
-            ?.ifBlank { displayModelId }
-            ?: displayModelId
-        val providerName = displayProv?.name.orEmpty()
-        if (prefs.showChatBarProvider && providerName.isNotBlank()) {
-            "$modelName ($providerName)"
-        } else {
-            modelName
-        }
-    }
+    // 微信顶栏只显示角色名；模型与搜索等工具收进输入栏面板，不再占标题下方那一行
+    val chatBarTitle = (conversation.card?.name ?: conversation.current?.charName ?: "")
+        .ifBlank { stringResource(R.string.default_character) }
+    // 时间分隔文案里“昨天”由资源提供，其余（时刻/星期/日期）由 weChatTimeLabel 按系统语言格式化
+    val yesterdayLabel = stringResource(R.string.time_yesterday)
+    // Waiting for a burst, generation and queued bubbles all count as typing.
+    // Selecting another conversation stops the current delivery owner first.
+    val typingVisible = generation.running
     val renderPrefs = RenderPrefs(
         markdown = prefs.characterMarkdown,
         htmlCss = prefs.htmlCssRendering,
@@ -251,53 +252,18 @@ internal fun ChatContent(
         autoCollapseCode = prefs.autoCollapseCode,
         codeCollapseLines = prefs.codeCollapseLines,
     )
-    // 侧边栏触觉反馈：抽屉打开时给一次短震动（走 Vibrator，独立于长按触觉闸门）
-    LaunchedEffect(drawerState.isOpen) {
-        if (prefs.sidebarHaptic && drawerState.isOpen) {
-            vibrate(ctx)
-        }
-    }
-
-    Box(Modifier.fillMaxSize()) {
-        InteractiveDrawer(
-            state = drawerState,
-            drawerContent = {
-                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                ChatDrawerContent(
-                    onClose = { scope.launch { drawerState.close() } },
-                    // 从抽屉进入的页面/弹层不关抽屉：返回（或收起面板）后仍停在抽屉
-                    onSettings = { nav.add(Screen.Settings) },
-                    onCharList = { nav.add(Screen.Characters) },
-                    onSearch = { nav.add(Screen.Search) },
-                    // 抽屉显示全部角色卡；一个角色对应一个聊天入口
-                    sessions = conversation.sessions,
-                    currentCharFile = conversation.current?.charFile.orEmpty(),
-                    onOpenCharacter = { file, name ->
-                        scope.launch { drawerState.close() }
-                        onAction(ChatAction.OpenCharacter(file, name))
-                    },
-                    onRenameSession = { id, title -> overlayState.renameSession = id to title },
-                    onPinSession = { id, pinned -> onAction(ChatAction.SetSessionPinned(id, pinned)) },
-                    onRegenerateTitle = { onAction(ChatAction.RegenerateTitle(it)) },
-                    onDeleteSession = { id -> overlayState.deleteSessionId = id },
-                    longPressHaptic = prefs.longPressHaptic,
-                    refreshKey = drawerCharacterRefresh,
-                    onUserProfileChanged = { name, description ->
-                        onAction(ChatAction.UpdateUserProfile(name, description))
-                    },
-                )
-                }
-            },
-            content = {
+    ProvideWeChatColors {
         Scaffold(
             modifier = Modifier.imePadding(),
-            containerColor = MaterialTheme.colorScheme.background,
+            containerColor = weChatColors().chatBackground,
                 topBar = {
                     ChatTopBar(
                         title = chatBarTitle,
-                        subtitle = chatBarSubtitle,
-                        onDrawer = { scope.launch { drawerState.open() } },
-                        onNewChat = { onAction(ChatAction.NewChat) },
+                        typing = typingVisible,
+                        onBack = ::goHome,
+                        time = worldContext.time,
+                        characterLocation = worldContext.characterLocation.orEmpty(),
+                        onSearch = { nav.add(Screen.Search) },
                     )
                 },
                 bottomBar = {
@@ -348,6 +314,8 @@ internal fun ChatContent(
                 val lazyMessages = pagedMessages.collectAsLazyPagingItems()
                 val overlays = conversation.overlays
                 val genTs = generation.targetTimestamp
+                // 生成中（含只有思考、还没正文的阶段）的目标消息不进列表：微信不会把没发完的话显示出来
+                val streamingTs = if (generation.running) genTs else null
                 val usePaging = lazyMessages.itemCount > 0
                 val inMemoryMessages = conversation.current?.messages.orEmpty()
                 val inMemoryVisibleMessages = remember(inMemoryMessages) {
@@ -422,7 +390,7 @@ internal fun ChatContent(
                 val density = LocalDensity.current
                 scrollCtrl.inputs.apply {
                     // 只有生成目标是末条消息时才自动跟随钉底；重答中间消息时原地生成，视口不动
-                    generatingAtEnd = generation.running && genTs != null && genTs == msgs.lastOrNull()?.ts
+                    generatingAtEnd = generation.running && (genTs == null || genTs == msgs.lastOrNull()?.ts)
                     hasMessages = msgs.isNotEmpty()
                     messageCount = msgs.size
                     bottomSlackPx = with(density) { 80.dp.toPx() }
@@ -463,7 +431,7 @@ internal fun ChatContent(
                 var lastObservedGenerating by remember { mutableStateOf(generation.running) }
                 LaunchedEffect(generation.running, generation.targetTimestamp) {
                     if (lastObservedGenerating && !generation.running &&
-                        generation.targetTimestamp == msgsNow.lastOrNull()?.ts) {
+                        (generation.targetTimestamp == null || generation.targetTimestamp == msgsNow.lastOrNull()?.ts)) {
                         scrollCtrl.onGenerationFinished()
                     }
                     lastObservedGenerating = generation.running
@@ -495,97 +463,87 @@ internal fun ChatContent(
                                 .testTag("chat_messages")
                                 .fillMaxSize()
                                 .padding(top = padding.calculateTopPadding())
-                                .padding(horizontal = Space16),
+                                .padding(horizontal = Space12),
                             state = scrollCtrl.listState,
                             contentPadding = PaddingValues(
                                 top = Space8,
-                                // spacedBy(16) 在末条消息与底部锚点之间固定垫了 16dp，无法对单个
-                                // item 豁免；这里反向扣掉，让贴底内容真正贴近输入栏。被扣的 16dp
+                                // spacedBy(12) 在末条消息与底部锚点之间固定垫了 12dp，无法对单个
+                                // item 豁免；这里反向扣掉，让贴底内容真正贴近输入栏。被扣的部分
                                 // 落在不透明底栏背后，不可见
-                                bottom = (padding.calculateBottomPadding() - Space16).coerceAtLeast(0.dp)
+                                bottom = (padding.calculateBottomPadding() - Space12).coerceAtLeast(0.dp)
                             ),
-                            verticalArrangement = Arrangement.spacedBy(Space16)
+                            verticalArrangement = Arrangement.spacedBy(Space12)
                         ) {
                             itemsIndexed(msgs, key = { _, msg -> msg.ts }) { i, msg ->
                                 // 触发分页按需加载：访问对应下标即向 Paging 登记位置，滚到边缘时预取相邻页。
                                 // msgs 与已加载分页共享下标（enablePlaceholders=false，itemCount 即已加载数）。
                                 if (usePaging && i < lazyMessages.itemCount) lazyMessages[i]
-                                if (msg.role == "user") {
-                                    UserMsg(
-                                        text = msg.content,
-                                        images = msg.images,
-                                        files = msg.files,
-                                        onCopy = { media.copyText(msg.content) },
-                                        onRegenerate = {
-                                            // 其后紧跟的 AI 回复在中间时原地重答，不滚到底部
-                                            overlayState.confirmRegenerate(prefs.confirmRegenerate) {
-                                                val midRegen = i + 1 < msgs.lastIndex && msgs[i + 1].role == "assistant"
-                                                onAction(
-                                                    ChatAction.RegenerateAfterUser(
-                                                        timestamp = msg.ts,
-                                                        scrollToBottom = !midRegen,
-                                                    ),
-                                                )
-                                            }
-                                        },
-                                        onMore = {
-                                            overlayState.menuTarget = MessageMenuTarget(msg, msgs, i == msgs.lastIndex)
-                                        },
-                                        scale = fontScale,
-                                        avatarBitmap = profile.userAvatar,
-                                        renderPrefs = renderPrefs.copy(markdown = prefs.userMarkdown),
-                                    )
-                                } else {
-                                    // 切分支后的落点锚定见 ChatScrollController.switchAnchored。
-                                    // 这里只做可切换性预判，避免边界处无谓的重锚定。
-                                    fun switchAltAnchored(dir: Int) {
-                                        if (msg.alts.size < 2 || (msg.altIdx + dir) !in 0..msg.alts.lastIndex) return
-                                        scrollCtrl.switchAnchored(index = i, isLast = i == msgs.lastIndex) {
-                                            onAction(ChatAction.SwitchAlternative(msg, dir))
+                                // 微信只显示已经发出去的消息：生成中的目标消息整条不渲染，
+                                // 进度由顶栏的“对方正在输入中…”承担，生成结束后整条一次出现。
+                                if (msg.ts != streamingTs) {
+                                    // 时间文案只在消息本身变化时算一次：生成期间每条可见消息都会随流式
+                                    // 更新重组，Calendar/SimpleDateFormat 放在组合里会变成每帧开销。
+                                    val previousTs = msgs.getOrNull(i - 1)?.ts
+                                    val timeLabel = remember(previousTs, msg.ts, yesterdayLabel) {
+                                        if (shouldShowWeChatTime(previousTs, msg.ts)) {
+                                            weChatTimeLabel(msg.ts, yesterdayLabel)
+                                        } else {
+                                            null
                                         }
                                     }
-                                    AIMsg(
-                                        msg = msg,
-                                        isStreaming = generation.running && msg.ts == genTs,
-                                        onCopy = { media.copyText(msg.content) },
-                                        onRegenerate = {
-                                            overlayState.confirmRegenerate(prefs.confirmRegenerate) {
-                                                onAction(
-                                                    ChatAction.RegenerateAssistant(
-                                                        timestamp = msg.ts,
-                                                        scrollToBottom = i == msgs.lastIndex,
-                                                    ),
-                                                )
+                                    // 微信不常显操作图标：长按气泡弹出消息菜单（复制/重答/朗读/编辑/删除版本）
+                                    val openMenu = {
+                                        overlayState.menuTarget = MessageMenuTarget(msg, msgs, i == msgs.lastIndex)
+                                    }
+                                    if (msg.role == "user") {
+                                        UserMsg(
+                                            text = msg.content,
+                                            timeLabel = timeLabel,
+                                            onLongPress = openMenu,
+                                            images = msg.images,
+                                            files = msg.files,
+                                            scale = fontScale,
+                                            avatarBitmap = profile.userAvatar,
+                                            userName = profile.userName,
+                                            renderPrefs = renderPrefs.copy(markdown = prefs.userMarkdown),
+                                        )
+                                    } else {
+                                        // 切分支后的落点锚定见 ChatScrollController.switchAnchored。
+                                        // 这里只做可切换性预判，避免边界处无谓的重锚定。
+                                        fun switchAltAnchored(dir: Int) {
+                                            if (msg.alts.size < 2 || (msg.altIdx + dir) !in 0..msg.alts.lastIndex) return
+                                            scrollCtrl.switchAnchored(index = i, isLast = i == msgs.lastIndex) {
+                                                onAction(ChatAction.SwitchAlternative(msg, dir))
                                             }
-                                        },
-                                        onMore = {
-                                            overlayState.menuTarget = MessageMenuTarget(msg, msgs, i == msgs.lastIndex)
-                                        },
-                                        onPrevAlt = { switchAltAnchored(-1) },
-                                        onNextAlt = { switchAltAnchored(+1) },
-                                        onSpeak = { onAction(ChatAction.SpeakMessage(msg)) },
-                                        speaking = profile.speakingTimestamp == msg.ts,
-                                        scale = fontScale,
-                                        regexScripts = conversation.displayRegexScripts,
-                                        depth = msgs.size - 1 - i,
-                                        userName = profile.userName,
-                                        charName = conversation.card?.name ?: conversation.current?.charName ?: "",
-                                        charAvatarBitmap = conversation.characterImage,
-                                        autoCollapseThinking = prefs.autoCollapseThinking,
-                                        thinkingMarkdown = prefs.thinkingMarkdown,
-                                        renderPrefs = renderPrefs,
-                                        chatMessagesJson = frontend.messagesJson,
-                                        frontendContextJson = frontend.contextJson(msg),
-                                        localVariablesJson = frontend.localVariablesJson,
-                                        globalVariablesJson = frontend.globalVariablesJson,
-                                        onSetInputText = { onAction(ChatAction.SetInputText(it)) },
-                                        onSetChatMessage = frontend::updateMessage,
-                                        onSelectChatMessageSwipe = frontend::selectAlternative,
-                                        onReplaceVariables = { scopeName, values ->
-                                            onAction(ChatAction.ReplaceFrontendVariables(scopeName, values))
-                                        },
-                                        rpcCall = frontendRpc,
-                                    )
+                                        }
+                                        AIMsg(
+                                            msg = msg,
+                                            timeLabel = timeLabel,
+                                            onLongPress = openMenu,
+                                            onPrevAlt = { switchAltAnchored(-1) },
+                                            onNextAlt = { switchAltAnchored(+1) },
+                                            scale = fontScale,
+                                            regexScripts = conversation.displayRegexScripts,
+                                            depth = msgs.size - 1 - i,
+                                            userName = profile.userName,
+                                            charName = conversation.card?.name ?: conversation.current?.charName ?: "",
+                                            charAvatarBitmap = conversation.characterImage,
+                                            renderPrefs = renderPrefs,
+                                            chatMessagesJson = frontend.messagesJson,
+                                            frontendContextJson = remember(frontend, msg.ts) {
+                                                { frontend.contextJson(msg) }
+                                            },
+                                            localVariablesJson = frontend.localVariablesJson,
+                                            globalVariablesJson = frontend.globalVariablesJson,
+                                            onSetInputText = { onAction(ChatAction.SetInputText(it)) },
+                                            onSetChatMessage = frontend::updateMessage,
+                                            onSelectChatMessageSwipe = frontend::selectAlternative,
+                                            onReplaceVariables = { scopeName, values ->
+                                                onAction(ChatAction.ReplaceFrontendVariables(scopeName, values))
+                                            },
+                                            rpcCall = frontendRpc,
+                                        )
+                                    }
                                 }
                             }
                             // 末尾锚点：让“越界索引 requestScrollToItem”clamp 后停在这条 1dp 行，
@@ -616,9 +574,6 @@ internal fun ChatContent(
 
                 }
             }
-            }
-        )
-    }
 
     ChatMessageOverlays(
         overlays = overlayState,
@@ -648,5 +603,6 @@ internal fun ChatContent(
         },
         onAction = onAction,
     )
+    }
 }
 }

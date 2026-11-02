@@ -7,7 +7,7 @@ import me.rerere.momoly.data.chat.ChatSession
 
 /** 聊天持久化契约；会话用例只依赖其中的 ChatSessionDataSource 能力。 */
 interface ChatDataRepository : ChatSessionDataSource {
-    data class SearchResult(val sessionId: String, val title: String, val content: String)
+    data class SearchResult(val sessionId: String, val title: String, val content: String, val timestamp: Long)
 
     fun messagesPaged(sessionId: String, initialKey: Int? = null): Flow<PagingData<ChatMessage>>
     suspend fun searchMessages(
@@ -26,6 +26,15 @@ interface ChatDataRepository : ChatSessionDataSource {
         message: ChatMessage,
         timedWorldInfo: Map<String, Int>,
     )
+    suspend fun commitReply(
+        sessionId: String,
+        message: ChatMessage,
+        timedWorldInfo: Map<String, Int>,
+        localVariables: Map<String, String>?,
+    ) {
+        if (localVariables != null) saveLocalVariables(sessionId, localVariables)
+        commitGeneration(sessionId, message, timedWorldInfo)
+    }
     suspend fun switchAlternative(sessionId: String, timestamp: Long, direction: Int): Boolean
     suspend fun deleteMessage(sessionId: String, timestamp: Long)
     suspend fun deleteAllVersions(sessionId: String, timestamp: Long)

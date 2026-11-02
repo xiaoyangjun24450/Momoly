@@ -34,6 +34,10 @@ class CharacterLibraryControllerTest {
         }
         override suspend fun create(name: String): CharacterCard = CharacterCard(name = name)
         override suspend fun import(source: Uri): CharacterCard = CharacterCard(name = "Imported")
+        override suspend fun import(source: Uri, confirmWorld: suspend (String) -> Boolean): CharacterCard {
+            check(confirmWorld("World"))
+            return import(source)
+        }
         override suspend fun delete(key: String) = Unit
         override suspend fun saveOrder(names: List<String>) = Unit
         override suspend fun exportPng(name: String): ByteArray = byteArrayOf()

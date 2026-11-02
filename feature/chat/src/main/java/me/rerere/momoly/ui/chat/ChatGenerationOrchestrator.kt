@@ -2,6 +2,9 @@ package me.rerere.momoly.ui.chat
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import me.rerere.momoly.data.api.ApiConfig
 import me.rerere.momoly.data.api.ApiProvider
 import me.rerere.momoly.data.api.ImageGenerationSettings
@@ -38,88 +41,129 @@ internal class ChatGenerationOrchestrator(
     private val sessions: ChatSessionCoordinator,
     private val postGeneration: ChatPostGenerationCoordinator,
     private val snapshot: () -> ChatGenerationSnapshot,
+    private val onFailure: (Throwable) -> Unit = {},
     private val onFrontendEvent: (String, String) -> Unit = { _, _ -> },
 ) {
+    private var deliveryTargetTimestamp by mutableStateOf<Long?>(null)
+    private val delivery = ChatReplyScheduler<ChatGenerationRunner.Result>(
+        scope = scope,
+        textOf = { it.finalMessage.content },
+        onFailure = onFailure,
+    )
     val isRunning: Boolean
-        get() = generationState.isRunning
+        get() = generationState.isRunning || delivery.busy
 
     val uiState: ChatGenerationState
-        get() = generationState.state
+        get() = ChatGenerationState(isRunning, deliveryTargetTimestamp ?: generationState.targetTimestamp)
 
-    fun launch(block: suspend () -> Unit): Boolean = generationState.launch(block)
+    suspend fun removeSessions(sessionIds: Set<String>, remove: suspend () -> Unit) =
+        delivery.removeSessions(sessionIds, remove)
+
+    fun stop() {
+        delivery.stop()
+        generationState.stop()
+    }
+
+    fun submitSend(
+        sessionId: String,
+        provider: ApiProvider,
+        modelId: String,
+        appendInput: suspend () -> Boolean,
+    ) = enqueue(sessionId, provider, modelId, appendInput = appendInput)
 
     fun launchRegeneration(
         sessionId: String,
         provider: ApiProvider,
         modelId: String,
         createPlan: (ChatSession) -> ChatRegenerationPlan?,
-    ): Boolean = launch {
-        val session = sessions.loadFull(sessionId) ?: return@launch
-        when (val plan = createPlan(session) ?: return@launch) {
-            is ChatRegenerationPlan.Regenerate -> generate(
-                sessionId, provider, modelId, ChatGenerationMode.REGENERATE, plan.targetTimestamp,
-            )
-            is ChatRegenerationPlan.TruncateAndSend -> {
-                sessions.truncateAfter(sessionId, plan.afterTimestamp)
-                generate(sessionId, provider, modelId, ChatGenerationMode.SEND, null)
-            }
-        }
+    ): Boolean {
+        if (isRunning) return false
+        var plan: ChatRegenerationPlan? = null
+        enqueue(
+            sessionId, provider, modelId,
+            appendInput = {
+                plan = sessions.loadFull(sessionId)?.let(createPlan)
+                deliveryTargetTimestamp = (plan as? ChatRegenerationPlan.Regenerate)?.targetTimestamp
+                (plan as? ChatRegenerationPlan.TruncateAndSend)?.let {
+                    sessions.truncateAfter(sessionId, it.afterTimestamp)
+                }
+                plan != null
+            },
+            regeneration = { plan as? ChatRegenerationPlan.Regenerate },
+            waitForInput = false,
+        )
+        return true
     }
 
-    fun stop() = generationState.stop()
-
-    suspend fun generate(
+    private fun enqueue(
         sessionId: String,
         provider: ApiProvider,
         modelId: String,
-        mode: ChatGenerationMode,
-        targetTimestamp: Long?,
+        appendInput: suspend () -> Boolean,
+        regeneration: () -> ChatRegenerationPlan.Regenerate? = { null },
+        waitForInput: Boolean = true,
     ) {
         val context = snapshot()
-        val result = runner.run(
-            request = ChatGenerationRunner.Request(
-                sessionId = sessionId,
-                provider = provider,
-                modelId = modelId,
-                mode = mode,
-                targetTimestamp = targetTimestamp,
-                card = context.card,
-                userName = context.userName,
-                worldBooks = context.worldBooks,
-                preset = context.preset,
-                promptRegex = context.promptRegex,
-                reasoning = context.reasoning,
-                imageGeneration = context.imageGeneration,
-                searchEnabled = context.searchEnabled,
-            ),
-            onStarted = { base, message ->
-                conversation.replacePersistedCurrent(base)
-                generationState.markTarget(message.ts)
-                conversation.putOverlay(message)
-                onFrontendEvent(
-                    "generation_started",
-                    JSONObject().put("message_ts", message.ts).toString(),
+        deliveryTargetTimestamp = null
+        delivery.submit(
+            sessionId = sessionId,
+            appendInput = appendInput,
+            waitForInput = waitForInput,
+            // Regeneration replaces one selected message/version in place.
+            splitReply = { it.finalMessage.alts.isEmpty() },
+            generate = { draft, onPartial ->
+                val regenerate = regeneration()
+                runner.run(
+                    request = ChatGenerationRunner.Request(
+                        sessionId = sessionId,
+                        provider = provider,
+                        modelId = modelId,
+                        mode = if (regenerate == null) ChatGenerationMode.SEND else ChatGenerationMode.REGENERATE,
+                        targetTimestamp = regenerate?.targetTimestamp,
+                        card = context.card,
+                        userName = context.userName,
+                        worldBooks = context.worldBooks,
+                        preset = context.preset,
+                        promptRegex = context.promptRegex,
+                        reasoning = context.reasoning,
+                        imageGeneration = context.imageGeneration,
+                        searchEnabled = context.searchEnabled,
+                        deferDelivery = true,
+                        interruptedDraft = draft,
+                    ),
+                    onStarted = { _, message ->
+                        if (conversation.current?.id == sessionId) {
+                            onFrontendEvent("generation_started", JSONObject().put("message_ts", message.ts).toString())
+                        }
+                    },
+                    onLocalVariablesCommitted = {},
+                    onUpdate = { message -> onPartial(message.content) },
                 )
             },
-            onLocalVariablesCommitted = { variables ->
-                conversation.updateCurrent(sessionId) { it.copy(localVariables = variables) }
+            publish = { result, text, index, _ ->
+                val message = runner.publish(result, text, index)
+                if (conversation.current?.id == sessionId) {
+                    conversation.putOverlay(message)
+                    // The row is already committed. A UI refresh failure must not make it unsent again.
+                    runCatching {
+                        val metadata = runner.metadata(sessionId)
+                        if (conversation.current?.id == sessionId) {
+                            metadata?.let(conversation::replaceCurrent)
+                            onFrontendEvent("message_received", JSONObject().put("message_ts", message.ts)
+                                .put("message_id", conversation.current!!.messageTimestamps.indexOf(message.ts)).toString())
+                        }
+                    }.onFailure(onFailure)
+                }
             },
-            onUpdate = { message ->
-                conversation.putOverlay(message)
-                onFrontendEvent(
-                    "stream_token_received",
-                    JSONObject().put("message_ts", message.ts).put("text", message.content).toString(),
-                )
+            completed = {
+                sessions.loadFull(sessionId)?.let { completed ->
+                    runPostGeneration(completed)
+                    if (conversation.current?.id == sessionId) {
+                        onFrontendEvent("generation_ended", JSONObject().put("message_id", completed.messages.lastIndex).toString())
+                    }
+                }
             },
-        ) ?: return
-
-        result.completedSession?.let { completed ->
-            if (conversation.current?.id == sessionId) conversation.replacePersistedCurrent(completed)
-            runPostGeneration(completed)
-            val messageId = completed.messages.lastIndex
-            onFrontendEvent("message_received", JSONObject().put("message_id", messageId).toString())
-            onFrontendEvent("generation_ended", JSONObject().put("message_id", messageId).toString())
-        }
+        )
     }
 
     fun generateTitle(session: ChatSession, force: Boolean) {

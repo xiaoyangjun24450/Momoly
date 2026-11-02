@@ -23,6 +23,7 @@ internal class AndroidChatSearchDataSource(
                 sessionId = result.sessionId,
                 title = result.title,
                 snippet = buildSearchSnippet(result.content, query),
+                timestamp = result.timestamp,
             )
         }
 }

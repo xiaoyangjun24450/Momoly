@@ -1,5 +1,7 @@
 package me.rerere.momoly.ui.chat
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import me.rerere.momoly.core.diagnostics.SafeLog
 import me.rerere.momoly.data.api.ApiProvider
 import me.rerere.momoly.data.api.ImageGenerationSettings
@@ -14,6 +16,7 @@ import me.rerere.momoly.data.worldbook.WorldBook
 import me.rerere.momoly.domain.GenerationEngine
 import me.rerere.momoly.domain.ChatGenerationMode
 import me.rerere.momoly.domain.chat.CommitChatGenerationUseCase
+import me.rerere.momoly.domain.InterruptedReplyDraft
 
 internal class ChatGenerationRunner(
     private val chatRepository: ChatDataRepository,
@@ -37,11 +40,14 @@ internal class ChatGenerationRunner(
         val reasoning: ReasoningLevel,
         val imageGeneration: ImageGenerationSettings,
         val searchEnabled: Boolean,
+        val deferDelivery: Boolean = false,
+        val interruptedDraft: InterruptedReplyDraft? = null,
     )
 
     data class Result(
         val completedSession: ChatSession?,
         val finalMessage: ChatMessage,
+        val prepared: PreparedChatGeneration,
     )
 
     suspend fun run(
@@ -50,7 +56,7 @@ internal class ChatGenerationRunner(
         onLocalVariablesCommitted: (Map<String, String>) -> Unit,
         onUpdate: (ChatMessage) -> Unit,
     ): Result? {
-        val prepared = prepare(request) ?: return null
+        val prepared = withContext(Dispatchers.Default) { prepare(request) } ?: return null
         val base = prepared.baseSession
         val generationMessage = prepared.generationMessage
         onStarted(base, generationMessage)
@@ -63,7 +69,7 @@ internal class ChatGenerationRunner(
         var globalCommitted = false
 
         try {
-            if (localChanged) {
+            if (localChanged && !request.deferDelivery) {
                 chatRepository.saveLocalVariables(
                     request.sessionId,
                     variableState.localVariables(),
@@ -71,7 +77,7 @@ internal class ChatGenerationRunner(
                 localCommitted = true
                 onLocalVariablesCommitted(variableState.localVariables())
             }
-            if (globalChanged) {
+            if (globalChanged && !request.deferDelivery) {
                 resources.saveGlobalVariables(variableState.globalVariables())
                 globalCommitted = true
             }
@@ -87,13 +93,19 @@ internal class ChatGenerationRunner(
                 toolExecutor = if (prepared.useSearchTool) searchTool.executor() else null,
                 persistGeneratedImage = resources::persistGeneratedImage,
                 errorText = resources::errorText,
+                throwOnFailure = request.deferDelivery,
                 onUpdate = onUpdate,
             )
-            val completedSession = commit(request.sessionId, finalMessage, assembled.built.timedWi)
+            if (request.deferDelivery && finalMessage.content.isBlank() && finalMessage.images.isEmpty()) {
+                error("The model returned an empty reply")
+            }
+            val completedSession = if (request.deferDelivery) null else
+                commit(request.sessionId, finalMessage, assembled.built.timedWi)
             onUpdate(finalMessage)
             return Result(
                 completedSession = completedSession,
                 finalMessage = finalMessage,
+                prepared = prepared,
             )
         } catch (error: Exception) {
             if (localCommitted) {
@@ -115,6 +127,31 @@ internal class ChatGenerationRunner(
             throw error
         }
     }
+
+    /** Called only through the scheduler's serialized publication gate. */
+    suspend fun publish(result: Result, text: String, index: Int): ChatMessage {
+        val prepared = result.prepared
+        val sessionId = prepared.baseSession.id
+        val final = result.finalMessage
+        val metadata = chatRepository.getMetadata(sessionId) ?: error("Conversation no longer exists")
+        val timestamp = if (index == 0 && final.alts.isNotEmpty()) final.ts else
+            maxOf(System.currentTimeMillis(), (metadata.messageTimestamps.lastOrNull() ?: 0L) + 1)
+        val message = if (index == 0) final.copy(
+            content = text, ts = timestamp,
+            alts = final.alts.mapIndexed { i, alt -> if (i == final.altIdx) alt.copy(content = text) else alt },
+        ) else ChatMessage(role = "assistant", content = text, model = final.model, ts = timestamp)
+        if (index == 0) {
+            val variables = prepared.prompt.variableState
+            if (prepared.commitVariables && variables.globalChanged()) {
+                resources.saveGlobalVariables(variables.globalVariables())
+            }
+            chatRepository.commitReply(sessionId, message, prepared.prompt.built.timedWi,
+                variables.localVariables().takeIf { prepared.commitVariables && variables.localChanged() })
+        } else chatRepository.putMessage(sessionId, message)
+        return message
+    }
+
+    suspend fun metadata(sessionId: String): ChatSession? = chatRepository.getMetadata(sessionId)
 
     private companion object {
         const val TAG = "ChatGenerationRunner"

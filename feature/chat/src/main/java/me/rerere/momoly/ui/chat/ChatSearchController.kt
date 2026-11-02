@@ -4,6 +4,7 @@ data class ChatSearchHit(
     val sessionId: String,
     val title: String,
     val snippet: String,
+    val timestamp: Long,
 )
 
 interface ChatSearchDataSource {

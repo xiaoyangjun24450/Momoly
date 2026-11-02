@@ -100,6 +100,7 @@ internal data class ChatSearchRow(
     val sessionId: String,
     val title: String,
     val content: String,
+    val timestamp: Long,
 )
 
 internal data class AttachmentColumns(
@@ -156,26 +157,20 @@ internal interface ChatDao {
     """)
     suspend fun latestMessagePreviews(sessionIds: List<String>): List<SessionLastMessageRow>
 
-    /** 每个会话只返回最早的一条命中消息，避免搜索页把完整聊天历史载入内存。 */
+    /** 按消息返回命中结果；限制返回数量，但不能按会话折叠，否则单角色只能搜到一条。 */
     @Query("""
         SELECT s.id AS sessionId,
             CASE WHEN s.title != '' THEN s.title ELSE COALESCE(
                 (SELECT content FROM messages p
                  WHERE p.sessionId = s.id AND p.role = 'user'
                  ORDER BY p.ts ASC LIMIT 1), '') END AS title,
-            m.content AS content
+            m.content AS content, m.ts AS timestamp
         FROM sessions s
         JOIN messages m ON m.sessionId = s.id
         WHERE s.charFile = :charFile
           AND m.isHidden = 0
           AND instr(lower(m.content), lower(:query)) > 0
-          AND m.ts = (
-              SELECT MIN(hit.ts) FROM messages hit
-              WHERE hit.sessionId = s.id
-                AND hit.isHidden = 0
-                AND instr(lower(hit.content), lower(:query)) > 0
-          )
-        ORDER BY s.updatedAt DESC
+        ORDER BY m.ts DESC, s.id ASC
         LIMIT :limit
     """)
     suspend fun searchMessages(charFile: String, query: String, limit: Int): List<ChatSearchRow>
@@ -264,6 +259,13 @@ internal interface ChatDao {
     suspend fun commitGeneration(message: MessageEntity, timedWiJson: String, updatedAt: Long) {
         upsertMessage(message)
         updateTimedWi(message.sessionId, timedWiJson, updatedAt)
+    }
+
+    @Transaction
+    suspend fun commitReply(message: MessageEntity, timedWiJson: String, variablesJson: String?, updatedAt: Long) {
+        upsertMessage(message)
+        updateTimedWi(message.sessionId, timedWiJson, updatedAt)
+        if (variablesJson != null) updateLocalVariables(message.sessionId, variablesJson, updatedAt)
     }
 
     @Query("UPDATE sessions SET localVariablesJson = :json, updatedAt = :t WHERE id = :id")

@@ -114,7 +114,7 @@ fun MessageContent(
     charName: String = "",
     renderPrefs: RenderPrefs = RenderPrefs(),
     chatMessagesJson: String = "[]",
-    frontendContextJson: String = "{}",
+    frontendContextJson: () -> String = { "{}" },
     localVariablesJson: String = "{}",
     globalVariablesJson: String = "{}",
     onSetInputText: (String) -> Unit = {},
@@ -122,13 +122,24 @@ fun MessageContent(
     onSelectChatMessageSwipe: (Int, Int) -> Unit = { _, _ -> },
     onReplaceVariables: (String, Map<String, String>) -> Unit = { _, _ -> },
     rpcCall: FrontendRpcCall = { method, _ -> error("Frontend RPC method is unavailable: $method") },
-    /** 是否撑满可用宽度。AI 消息用 true（整行宽）；用户气泡内传 false 让气泡拥抱内容 */
+    /** 是否撑满可用宽度。AI 消息的微信气泡传 false 让气泡按内容收缩 */
     fillWidth: Boolean = true,
+    /**
+     * Markdown 每个块前的间距。默认跟随 [fillWidth]（整行宽 6dp、气泡内 0dp）；
+     * 微信 AI 气泡既要按内容收缩、又要保留段落间距，所以单独传 6dp。
+     */
+    blockSpacing: Dp? = null,
 ) {
     if (content.isBlank()) {
         // 流式等待（还没有正文，纯思考阶段）显示呼吸点；非流式空内容不占位
         if (isStreaming) StreamingDots(modifier.padding(vertical = 8.dp))
         return
+    }
+
+    // 角色资料和头像可能很大。仅 HTML 消费上下文，普通气泡不生成/比较这段 JSON；
+    // 同一消息里的多个 HTML 段、键盘引起的重组共享一次结果，来源变化后重新生成。
+    val resolvedFrontendContext by remember(frontendContextJson) {
+        lazy(LazyThreadSafetyMode.NONE, frontendContextJson)
     }
 
     // 稳定的深度键，避免新消息到达时重算旧消息
@@ -152,7 +163,7 @@ fun MessageContent(
         Text(
             processed,
             style = textStyle,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = textStyle.color,
             modifier = if (fillWidth) modifier.fillMaxWidth() else modifier,
         )
         return
@@ -177,7 +188,7 @@ fun MessageContent(
             allowContentJavaScript = renderPrefs.javascript,
             isStreaming = isStreaming,
             chatMessagesJson = chatMessagesJson,
-            frontendContextJson = frontendContextJson,
+            frontendContextJson = resolvedFrontendContext,
             localVariablesJson = localVariablesJson,
             globalVariablesJson = globalVariablesJson,
             onSetInputText = onSetInputText,
@@ -200,7 +211,7 @@ fun MessageContent(
                 key(index, segment.text.hashCode(), segment.isHtml) {
                     if (segment.isHtml) {
                         if (isStreaming || !renderPrefs.htmlCss) {
-                            Text(segment.text, style = textStyle, color = MaterialTheme.colorScheme.onSurface)
+                            Text(segment.text, style = textStyle, color = textStyle.color)
                         } else {
                             HtmlMessageContent(
                                 html = segment.text,
@@ -209,7 +220,7 @@ fun MessageContent(
                                 allowContentJavaScript = renderPrefs.javascript,
                                 isStreaming = isStreaming,
                                 chatMessagesJson = chatMessagesJson,
-                                frontendContextJson = frontendContextJson,
+                                frontendContextJson = resolvedFrontendContext,
                                 localVariablesJson = localVariablesJson,
                                 globalVariablesJson = globalVariablesJson,
                                 onSetInputText = onSetInputText,
@@ -226,12 +237,13 @@ fun MessageContent(
                             modifier = Modifier.fillMaxWidth(),
                             renderPrefs = renderPrefs,
                             fillWidth = true,
+                            blockSpacing = blockSpacing,
                         )
                     } else {
                         Text(
                             segment.text,
                             style = textStyle,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = textStyle.color,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -247,12 +259,13 @@ fun MessageContent(
             modifier = modifier,
             renderPrefs = renderPrefs,
             fillWidth = fillWidth,
+            blockSpacing = blockSpacing,
         )
     } else {
         Text(
             streamSafe,
             style = textStyle,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = textStyle.color,
             modifier = if (fillWidth) modifier.fillMaxWidth() else modifier,
         )
     }
@@ -316,8 +329,9 @@ private fun MarkdownMessageBlock(
     modifier: Modifier,
     renderPrefs: RenderPrefs,
     fillWidth: Boolean,
+    blockSpacing: Dp? = null,
 ) {
-    ComposeMarkdownBlock(content, textStyle, modifier, renderPrefs, fillWidth)
+    ComposeMarkdownBlock(content, textStyle, modifier, renderPrefs, fillWidth, blockSpacing)
 }
 
 @Composable
@@ -327,6 +341,7 @@ internal fun ComposeMarkdownBlock(
     modifier: Modifier,
     renderPrefs: RenderPrefs,
     fillWidth: Boolean,
+    blockSpacing: Dp? = null,
 ) {
     var previewImage by remember { mutableStateOf<String?>(null) }
     val prepared = remember(content, renderPrefs.math) {
@@ -406,7 +421,7 @@ internal fun ComposeMarkdownBlock(
     Markdown(
         state = markdownState,
         typography = chatMarkdownTypography(textStyle),
-        padding = markdownPadding(block = if (fillWidth) 6.dp else 0.dp),
+        padding = markdownPadding(block = blockSpacing ?: if (fillWidth) 6.dp else 0.dp),
         modifier = if (fillWidth) modifier.fillMaxWidth() else modifier,
         animations = noTextAnimations,
         components = components,

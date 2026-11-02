@@ -85,6 +85,9 @@ import org.json.JSONObject
  * 还原"思考→搜索→再思考"的真实时序；思考步骤标题带该段耗时，流式期间最后一段未展开时
  * 显示限高预览（上下渐隐、自动滚底）；搜索步骤点击弹出参数/结果详情面板（可切 JSON 视图）。
  * 引用以"N个引用"胶囊卡挂在正文之后，点击弹出来源列表。
+ *
+ * 注意：微信式线上聊天要求隐藏思考过程，本文件的 ThoughtTimelineCard 目前没有被任何页面调用；
+ * 仍在用的是文件末尾的 CitationsPill / CitationsSheet（来源胶囊 + 来源列表）。
  */
 
 private val TimelineIconSize = 18.dp

@@ -196,6 +196,7 @@ object CharacterRepository {
         context: Context,
         uri: Uri,
         defaultPresetId: String = "",
+        confirmWorld: suspend (String) -> Boolean = { true },
     ): CharacterCard = withContext(Dispatchers.IO) {
         val rawBytes = context.contentResolver.openInputStream(uri)?.readBytes()
             ?: throw IllegalStateException("无法读取文件")
@@ -219,6 +220,10 @@ object CharacterRepository {
             displayName?.substringBeforeLast('.')?.takeIf { it.isNotBlank() }
                 ?: "character_${System.currentTimeMillis()}"
         }
+        // 确认前不写角色、头像、世界书或正则；持有已读取的输入，避免确认后文件变化。
+        val worldName = charaBook.optString("name", "").trim().ifBlank { "$requestedName 世界书" }
+        if (!confirmWorld(worldName)) throw CharacterImportCancelledException()
+        data.put("world_name", worldName)
         mutationMutex.withLock {
             val baseName = safeFileName(requestedName)
             val name = uniqueFileName(context, requestedName)
@@ -236,7 +241,7 @@ object CharacterRepository {
                     createdImage = true
                 }
 
-                val bookName = charaBook.optString("name", "").ifBlank { "$name 世界书" }
+                val bookName = worldName
                 val extractedBook = WorldBookRepository.createFromCharacterBook(context, bookName, charaBook)
                 createdWorldBook = extractedBook
                 data.put("enabled_world_book_ids", JSONArray().put(extractedBook.id))

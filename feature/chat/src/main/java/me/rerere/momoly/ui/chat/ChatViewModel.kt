@@ -280,6 +280,10 @@ class ChatViewModel(
             sessions = sessionCoordinator,
             postGeneration = postGenerationCoordinator,
             snapshot = ::generationSnapshot,
+            onFailure = { error ->
+                SafeLog.error(CHAT_VIEW_MODEL_TAG, "reply_delivery_failed", error)
+                showMessage(platformDependencies.texts.generationFailed(error.message.orEmpty()))
+            },
             onFrontendEvent = ::emitFrontendEvent,
         )
     }
@@ -371,7 +375,7 @@ class ChatViewModel(
         when (action) {
             ChatAction.SendMessage -> {
                 val scrollToBottom = input.editingTimestamp == null
-                handleOutcome(sendMessage(), scrollToBottom, hideKeyboard = true)
+                handleOutcome(sendMessage(), scrollToBottom)
             }
             is ChatAction.UseQuickReply -> handleOutcome(
                 onQuickReply(action.reply),
@@ -502,21 +506,40 @@ class ChatViewModel(
     // ── 会话管理 ──
 
     private fun openSession(id: String) {
-        if (generating) return
+        if (generating) generationOrchestrator.stop()
         sessionActions.open(id)
     }
 
     /** 顶栏"新聊天"：当前已是无用户消息的新聊天则不重复创建 */
     private fun newChat() {
-        if (generating) return
+        if (generating) generationOrchestrator.stop()
         sessionActions.createNew()
     }
 
     /** 角色选择面板：切到该角色最近的会话；没有则在内存里开新会话（发消息前不落盘）。
      *  偏好"切换角色时新建对话"开启时每次都新建，不再回到该角色的旧会话。 */
     private fun openCharacter(fileName: String, displayName: String) {
-        if (generating) return
+        if (generating) generationOrchestrator.stop()
         sessionActions.openCharacter(fileName, displayName)
+    }
+
+    suspend fun clearContactHistory(fileName: String) {
+        require(fileName.isNotBlank())
+        val ids = chatRepository.listSummaries().filter { it.charFile == fileName }.map { it.id }.toMutableSet()
+        conversation.current?.takeIf { it.charFile == fileName }?.let { ids += it.id }
+        generationOrchestrator.removeSessions(ids) {
+            // Re-read after pending user-message writes have completed.
+            chatRepository.listSummaries().filter { it.charFile == fileName }.forEach {
+                chatRepository.delete(it.id)
+            }
+            conversation.replaceSessions(chatRepository.listSummaries())
+            if (conversation.current?.charFile == fileName) {
+                tts.stop()
+                conversation.replaceCurrent(null)
+                input.clearDraft()
+                input.cancelEditing()
+            }
+        }
     }
 
     private fun deleteSession(id: String) {

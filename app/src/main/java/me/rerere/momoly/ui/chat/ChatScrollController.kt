@@ -350,6 +350,9 @@ internal class ChatScrollController(
                 !listState.canScrollForward) {
                 return@collect
             }
+            // 已经精确贴底时再请求会触发一次新测量，测量又唤醒这个观察流，形成空转循环
+            //（生成中的目标消息被隐藏、高度不再增长时尤其明显）。
+            if (isExactlyAtBottom()) return@collect
             // 已贴底时再次请求会触发新测量，使布局观察和滚动请求互相唤醒。
             listState.requestScrollToItem(it.totalItemsCount + BottomOvershoot)
         }

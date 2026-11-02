@@ -1,6 +1,8 @@
 package me.rerere.momoly.domain
 
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -32,11 +34,11 @@ class GenerationEngine(
         const val HARD_TOOL_ROUNDS = 5
     }
 
-    private val stopFlag = AtomicBoolean(false)
+    private val activeStopFlag = AtomicReference(AtomicBoolean(false))
 
     /** 用户主动停止当前生成 */
     fun stop() {
-        stopFlag.set(true)
+        activeStopFlag.get().set(true)
     }
 
     suspend fun run(
@@ -51,9 +53,12 @@ class GenerationEngine(
         toolExecutor: GenerationToolExecutor? = null,
         persistGeneratedImage: suspend (GeneratedImage) -> PersistedGeneratedImage? = { null },
         errorText: (Exception) -> String,
+        throwOnFailure: Boolean = false,
         onUpdate: (ChatMessage) -> Unit,
     ): ChatMessage = coroutineScope {
-        stopFlag.set(false)
+        val stopFlag = AtomicBoolean(false)
+        activeStopFlag.set(stopFlag)
+        val runJob = coroutineContext[Job]!!
         val generationStartedAt = System.currentTimeMillis()
         var cur = genMessage
         onUpdate(cur)
@@ -122,10 +127,10 @@ class GenerationEngine(
                     messages = apiMessages,
                     params = built.genParams,
                     tools = tools,
-                    isCancelled = { stopFlag.get() },
+                    isCancelled = { stopFlag.get() || !runJob.isActive },
                     ),
                 ) { event ->
-                    if (stopFlag.get()) throw GenerationCancelled()
+                    if (stopFlag.get() || !runJob.isActive) throw GenerationCancelled()
                     val c = (event as? GenerationEvent.ContentDelta)?.content.orEmpty()
                     val r = (event as? GenerationEvent.ReasoningDelta)?.reasoning.orEmpty()
                     if (r.isNotEmpty()) {
@@ -237,9 +242,11 @@ class GenerationEngine(
                 requestSnapshots = requestSnapshots,
             )
         } catch (_: GenerationCancelled) {
+            if (throwOnFailure) throw CancellationException("Reply interrupted")
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (e: Exception) {
+            if (throwOnFailure) { refresher?.cancel(); throw e }
             val displayError = if (e is GenerationRequestException) {
                 if (e.snapshot !in requestSnapshots) {
                     requestSnapshots = requestSnapshots + e.snapshot

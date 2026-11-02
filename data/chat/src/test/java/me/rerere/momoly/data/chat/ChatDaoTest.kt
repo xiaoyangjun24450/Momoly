@@ -39,7 +39,7 @@ class ChatDaoTest {
     }
 
     @Test
-    fun searchReturnsOneEarliestHitPerSession() = runBlocking {
+    fun searchReturnsEveryMatchingMessageInTheSameSessionNewestFirst() = runBlocking {
         dao.insertSession(session("s1", title = ""))
         dao.upsertMessage(message("s1", 1, "user", "first title"))
         dao.upsertMessage(message("s1", 2, "assistant", "fawn first hit"))
@@ -47,9 +47,35 @@ class ChatDaoTest {
 
         val results = dao.searchMessages("char.json", "FAWN", 100)
 
-        assertEquals(1, results.size)
-        assertEquals("first title", results.single().title)
-        assertEquals("fawn first hit", results.single().content)
+        assertEquals(2, results.size)
+        assertEquals(listOf("first title", "first title"), results.map { it.title })
+        assertEquals(listOf("fawn second hit", "fawn first hit"), results.map { it.content })
+        assertEquals(listOf(3L, 2L), results.map { it.timestamp })
+    }
+
+    @Test
+    fun searchFiltersHiddenAndOtherCharactersAndLimitsMessagesInsteadOfSessions() = runBlocking {
+        dao.insertSession(session("s1"))
+        dao.insertSession(session("s2"))
+        dao.insertSession(session("other").copy(charFile = "other.json"))
+        dao.upsertMessage(message("s1", 1, "user", "你好吗"))
+        dao.upsertMessage(message("s1", 2, "assistant", "你在家吗"))
+        dao.upsertMessage(message("s2", 3, "assistant", "你回来了"))
+        dao.upsertMessage(message("s1", 4, "assistant", "隐藏的你").copy(isHidden = true))
+        dao.upsertMessage(message("other", 5, "assistant", "另一个角色的你"))
+
+        assertEquals(listOf(3L, 2L, 1L), dao.searchMessages("char.json", "你", 100).map { it.timestamp })
+        assertEquals(listOf(3L, 2L), dao.searchMessages("char.json", "你", 2).map { it.timestamp })
+        assertTrue(dao.searchMessages("char.json", "不存在的词", 100).isEmpty())
+    }
+
+    @Test
+    fun identicalTextIsStillTwoMessagesAndWildcardCharactersAreLiteral() = runBlocking {
+        dao.insertSession(session("s1"))
+        dao.upsertMessage(message("s1", 1, "user", "100%_ready"))
+        dao.upsertMessage(message("s1", 2, "assistant", "100%_ready"))
+        dao.upsertMessage(message("s1", 3, "assistant", "unrelated"))
+        assertEquals(listOf(2L, 1L), dao.searchMessages("char.json", "%_", 100).map { it.timestamp })
     }
 
     @Test

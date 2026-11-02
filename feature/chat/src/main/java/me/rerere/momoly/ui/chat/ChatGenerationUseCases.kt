@@ -51,6 +51,7 @@ internal class PrepareChatGenerationUseCase(
                 modelId = request.modelId,
                 generationMessage = plan.message,
                 commitVariables = commitVariables,
+                interruptedDraft = request.interruptedDraft,
             ),
         )
         val built = assembled.built.copy(

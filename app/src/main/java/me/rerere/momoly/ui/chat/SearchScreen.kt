@@ -47,6 +47,8 @@ import me.rerere.momoly.ui.components.AppTopBar
 import me.rerere.momoly.ui.components.AppIconButton
 import me.rerere.momoly.ui.components.Space8
 import me.rerere.momoly.ui.components.Space12
+import java.text.DateFormat
+import java.util.Date
 
 @Composable
 fun SearchScreen(
@@ -141,7 +143,7 @@ fun SearchScreen(
                 }
             }
         } else if (query.isNotBlank() && hits.isEmpty()) {
-            // 无匹配会话
+            // 无匹配消息
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     stringResource(R.string.search_no_results),
@@ -150,7 +152,7 @@ fun SearchScreen(
                 )
             }
         } else if (query.isNotBlank()) {
-            // ── 搜索结果：命中的会话 ──
+            // ── 搜索结果：每条命中的消息单独展示 ──
             Column(Modifier.weight(1f).fillMaxWidth()) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = Space12),
@@ -165,8 +167,12 @@ fun SearchScreen(
                     Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    itemsIndexed(hits, key = { _, h -> h.sessionId }) { _, hit ->
+                    itemsIndexed(hits, key = { _, h -> "${h.sessionId}:${h.timestamp}" }) { _, hit ->
                         val title = hit.title.ifBlank { stringResource(R.string.new_chat) }
+                        val messageTime = remember(hit.timestamp) {
+                            DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                                .format(Date(hit.timestamp))
+                        }
                         Row(
                             Modifier.fillMaxWidth()
                                 .clickable {
@@ -185,7 +191,9 @@ fun SearchScreen(
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(hit.snippet, style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                Text(messageTime, style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }

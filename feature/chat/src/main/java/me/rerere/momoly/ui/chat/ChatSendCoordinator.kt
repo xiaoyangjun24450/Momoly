@@ -2,7 +2,7 @@ package me.rerere.momoly.ui.chat
 
 import me.rerere.momoly.core.diagnostics.SafeLog
 import me.rerere.momoly.data.api.ApiProvider
-import me.rerere.momoly.domain.ChatGenerationMode
+import me.rerere.momoly.data.chat.ChatSession
 
 internal enum class ChatSendOutcome { STARTED, NO_MODEL, SKIPPED, FILE_TOO_LARGE }
 
@@ -25,7 +25,7 @@ internal class ChatSendCoordinator(
     private val canSend: () -> Boolean = { true },
 ) {
     fun send(): ChatSendOutcome {
-        if (generation.isRunning || !canSend()) return ChatSendOutcome.SKIPPED
+        if (!canSend()) return ChatSendOutcome.SKIPPED
         if (!promptContext.isLoadedFor(conversation.current?.charFile.orEmpty())) {
             return ChatSendOutcome.SKIPPED
         }
@@ -35,7 +35,7 @@ internal class ChatSendCoordinator(
 
         val editingTimestamp = input.editingTimestamp
         if (editingTimestamp != null) {
-            if (text.isBlank()) return ChatSendOutcome.SKIPPED
+            if (text.isBlank() || generation.isRunning) return ChatSendOutcome.SKIPPED
             input.editingMessage?.let { messageMutations.updateMessage(it, text) }
             input.finishEditing()
             return ChatSendOutcome.STARTED
@@ -45,30 +45,26 @@ internal class ChatSendCoordinator(
         if (attachments.hasOversizedFile(pendingAttachments)) {
             return ChatSendOutcome.FILE_TOO_LARGE
         }
+        val source = conversation.current ?: ChatSession().also(conversation::replaceCurrent)
         input.clearDraft()
-        generation.launch {
+        generation.submitSend(source.id, provider, modelId) {
             when (val result = sendMessage(
-                currentSession = { conversation.current },
+                currentSession = { source },
                 text = text,
                 pendingAttachments = pendingAttachments,
                 onPrepared = { prepared, userMessage ->
-                    conversation.replacePersistedCurrent(prepared)
-                    conversation.putOverlay(userMessage)
+                    if (conversation.current?.id == prepared.id) {
+                        conversation.replacePersistedCurrent(prepared)
+                        conversation.putOverlay(userMessage)
+                    }
                 },
-                generate = { sessionId ->
-                    generation.generate(
-                        sessionId,
-                        provider,
-                        modelId,
-                        ChatGenerationMode.SEND,
-                        null,
-                    )
-                },
+                generate = {},
             )) {
-                SendChatMessageResult.Completed -> Unit
+                SendChatMessageResult.Completed -> true
                 SendChatMessageResult.AttachmentFailed -> {
                     input.restoreDraft(text, pendingAttachments)
                     onFailure(ChatSendFailure.Attachment)
+                    false
                 }
                 is SendChatMessageResult.Failed -> {
                     result.restoredSession?.let { restored ->
@@ -78,6 +74,7 @@ internal class ChatSendCoordinator(
                     input.restoreDraft(text, pendingAttachments)
                     SafeLog.error(TAG, "send_message_failed", result.error)
                     onFailure(ChatSendFailure.Send(result.error, result.rollbackFailed))
+                    false
                 }
             }
         }

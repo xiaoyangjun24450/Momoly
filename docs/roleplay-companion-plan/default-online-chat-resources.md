@@ -6,8 +6,8 @@
 
 | 资源 | 内容 | 使用方式 |
 | --- | --- | --- |
-| [默认聊天预设](/home/xyj/muyang_ws/Momoly/data/resources/src/main/assets/defaults/online-chat-preset.json) | 角色身份、世界设定与历史的提示顺序；线上消息边界；发送前自检 | 首次创建默认预设时加载；没有关联预设的角色自动使用它。 |
-| [全角色常驻规则世界书](/home/xyj/muyang_ws/Momoly/data/resources/src/main/assets/defaults/online-chat-worldbook.json) | 中文自然回应、角色差异、关系分寸、事实边界、消息节奏和正反例 | 每个角色的聊天上下文自动加载同一份，不需要逐角色勾选。 |
+| [默认聊天预设](../../data/resources/src/main/assets/defaults/online-chat-preset.json) | 角色身份、世界设定与历史的提示顺序；线上消息边界；发送前自检 | 首次创建默认预设时加载；没有关联预设的角色自动使用它。 |
+| [全角色常驻规则世界书](../../data/resources/src/main/assets/defaults/online-chat-worldbook.json) | 中文自然回应、角色差异、关系分寸、事实边界、消息节奏和正反例 | 每个角色的聊天上下文自动加载同一份，不需要逐角色勾选。 |
 
 两份 JSON 均按 SillyTavern 格式组织，也可以单独导入酒馆。预设负责总体编排，世界书补充具体交流习惯；没有引入外部插件运行时、额外检查模型或生成后删括号的正则。
 

@@ -13,6 +13,7 @@ import me.rerere.momoly.data.worldbook.WorldInfoSettings
 import me.rerere.momoly.domain.MacroVariableState
 import me.rerere.momoly.domain.PromptBuilder
 import me.rerere.momoly.domain.PromptMessageAssembler
+import me.rerere.momoly.domain.InterruptedReplyDraft
 import me.rerere.momoly.extension.PromptContext
 import me.rerere.momoly.extension.PromptContributor
 import me.rerere.momoly.extension.Extension
@@ -48,6 +49,7 @@ class ChatPromptAssembler(
         val modelId: String,
         val generationMessage: ChatMessage,
         val commitVariables: Boolean,
+        val interruptedDraft: InterruptedReplyDraft? = null,
     )
 
     data class Result(
@@ -127,6 +129,7 @@ class ChatPromptAssembler(
                 history = promptHistory,
                 baseDir = environment.filesDir(),
                 mutateLastUserMessage = request.commitVariables,
+                interruptedDraft = request.interruptedDraft,
             ),
             variableState = variableState,
         )

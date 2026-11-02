@@ -43,7 +43,7 @@
 | 共用常驻规则世界书 | 保留原有模型参数和预设，规则可独立修改；一份书复用于多个角色 | 条目与多书关联已支持，但目前只读取当前角色的关联书，没有全局世界书集合。可以先关联同一份书给多个角色；自动覆盖所有现有及新角色需要额外接入。 |
 | 酒馆浏览器插件 | 能自行组织生成、拆分消息和处理事件 | 依赖 SillyTavern 浏览器上下文，不能直接作为 Kotlin 模块安装；适合借鉴提示，完整移植成本更高。 |
 
-当前证据见 [PromptContextLoader.kt:50](/home/xyj/muyang_ws/Momoly/data/resources/src/main/java/me/rerere/momoly/data/PromptContextLoader.kt:50)：只遍历 `card.enabledWorldBookIds`；预设也读取角色的 `linkedPresetId`。仅在世界书 JSON 中添加一个自造的 `global: true` 字段，不会使所有角色自动使用它。
+当前证据见 [PromptContextLoader.kt:50](../../data/resources/src/main/java/me/rerere/momoly/data/PromptContextLoader.kt)：只遍历 `card.enabledWorldBookIds`；预设也读取角色的 `linkedPresetId`。仅在世界书 JSON 中添加一个自造的 `global: true` 字段，不会使所有角色自动使用它。
 
 **全局规则书和角色所属世界书是两种用途。** 例如“线上聊天规则”可以同时用于校园和奇幻角色，但不能因此把这些角色归成同一个世界，也不能代替角色 PNG 本身必须附带的世界书。角色世界书继续负责世界归类与设定，共用规则书只提供行为约束。
 
@@ -51,7 +51,7 @@
 
 ## 4. 常驻规则书的可用配置与限制
 
-当前 [世界书解析器](/home/xyj/muyang_ws/Momoly/data/resources/src/main/java/me/rerere/momoly/data/worldbook/WorldBookParser.kt) 和 [提示组装器](/home/xyj/muyang_ws/Momoly/domain/generation/src/main/java/me/rerere/momoly/domain/PromptBuilder.kt:338) 已支持这些必要机制：
+当前 [世界书解析器](../../data/resources/src/main/java/me/rerere/momoly/data/worldbook/WorldBookParser.kt) 和 [提示组装器](../../domain/generation/src/main/java/me/rerere/momoly/domain/PromptBuilder.kt) 已支持这些必要机制：
 
 - 启用条目，设置 `constant: true`；无需关键词命中。
 - 关闭向量激活，采用 100% 激活概率，不设置延迟、冷却或必须递归才触发。
@@ -60,7 +60,7 @@
 
 “常驻”意味着不依赖关键词，不代表必然全量进入每次请求。本地代码仍会进行概率、分组和 token 预算筛选；`ignore_budget` 没有对应的运行模型字段。规则应短而完整，并检查真实请求中是否存在，不能只看世界书开关已经打开。
 
-目前的 `EjsTemplate`、`generateRaw` 等兼容 API 位于 [tavern-helper-compat.js](/home/xyj/muyang_ws/Momoly/app/src/main/assets/frontend/tavern-helper-compat.js:520)。存在这些接口不代表任意 ST 插件都能运行，也不证明 Kotlin 的提示组装会自动执行世界书中的全部 EJS 语法；本次不把复杂模板作为交付前提。
+目前的 `EjsTemplate`、`generateRaw` 等兼容 API 位于 [tavern-helper-compat.js](../../app/src/main/assets/frontend/tavern-helper-compat.js)。存在这些接口不代表任意 ST 插件都能运行，也不证明 Kotlin 的提示组装会自动执行世界书中的全部 EJS 语法；本次不把复杂模板作为交付前提。
 
 ## 5. 规则内容可以怎样拆分
 
@@ -87,15 +87,15 @@
 
 当前有三点尤其需要在后续验收时单独处理：
 
-1. [ConversationOps.kt:20](/home/xyj/muyang_ws/Momoly/domain/generation/src/main/java/me/rerere/momoly/domain/ConversationOps.kt:20) 直接展示卡片开场白与备选；它们没有经过模型，加入规则书不会自动把原始叙事改成聊天。
-2. [PromptBuilder.kt:293](/home/xyj/muyang_ws/Momoly/domain/generation/src/main/java/me/rerere/momoly/domain/PromptBuilder.kt:293) 中的 `forbid_overrides` 可以阻止卡片替换预设的主提示，但角色描述、示例、深度提示和其他书仍可能包含冲突内容；共用世界书不是程序上的最高优先级策略。
-3. [ChatGenerationRunner.kt:85](/home/xyj/muyang_ws/Momoly/feature/chat/src/main/java/me/rerere/momoly/ui/chat/ChatGenerationRunner.kt:85) 的流式选择来自角色设置；仅在导入预设中写 `stream_openai: false` 不能保证当前聊天隐藏未检查正文。显示正则也不会自动把历史中的原文全部改为纯消息。
+1. [ConversationOps.kt:20](../../domain/generation/src/main/java/me/rerere/momoly/domain/ConversationOps.kt) 直接展示卡片开场白与备选；它们没有经过模型，加入规则书不会自动把原始叙事改成聊天。
+2. [PromptBuilder.kt:293](../../domain/generation/src/main/java/me/rerere/momoly/domain/PromptBuilder.kt) 中的 `forbid_overrides` 可以阻止卡片替换预设的主提示，但角色描述、示例、深度提示和其他书仍可能包含冲突内容；共用世界书不是程序上的最高优先级策略。
+3. [ChatGenerationRunner.kt:85](../../feature/chat/src/main/java/me/rerere/momoly/ui/chat/ChatGenerationRunner.kt) 的流式选择来自角色设置；仅在导入预设中写 `stream_openai: false` 不能保证当前聊天隐藏未检查正文。显示正则也不会自动把历史中的原文全部改为纯消息。
 
 因此本轮调研以可复用的提示内容为主，不再默认引入独立检查模型或完整代理系统。最终仍按阶段 1 的实际输出标准验收；若提示方案不能通过，再针对具体失败入口讨论必要补充，而不是先扩大实现范围。
 
 ## 7. 本轮导入改动
 
-[CharacterRepository.kt:208](/home/xyj/muyang_ws/Momoly/data/resources/src/main/java/me/rerere/momoly/data/character/CharacterRepository.kt:208) 新增世界书存在检查，在任何角色资源写入前拒绝缺少可读取 `character_book` 对象的导入。仍识别 `data.character_book` 和根级 `character_book` 两种原有位置。
+[CharacterRepository.kt:208](../../data/resources/src/main/java/me/rerere/momoly/data/character/CharacterRepository.kt) 新增世界书存在检查，在任何角色资源写入前拒绝缺少可读取 `character_book` 对象的导入。仍识别 `data.character_book` 和根级 `character_book` 两种原有位置。
 
 没有新增书名、条目数量、角色性格或日程字段限制；有世界书但没有书名时继续沿用原有补名行为。需求、阶段计划和导入说明已同步到这个范围。
 

@@ -24,6 +24,7 @@ internal fun ChatDestinationHost(
     onOpenSearchSession: (String) -> Unit,
 ) {
     when (destination) {
+        ChatDestination.Home -> error("Home is rendered by the root host")
         ChatDestination.Settings -> {
             SettingsScreen(
                 onBack = onBack,

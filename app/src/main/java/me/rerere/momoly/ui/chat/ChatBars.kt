@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -19,97 +19,123 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldDecorator
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.ArrowUp
+import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Camera
+import com.composables.icons.lucide.ChevronLeft
 import com.composables.icons.lucide.Earth
 import com.composables.icons.lucide.Image
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Maximize
-import com.composables.icons.lucide.SquarePen
-import com.composables.icons.lucide.MessageCirclePlus
 import com.composables.icons.lucide.Package
 import com.composables.icons.lucide.Paperclip
 import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Square
+import com.composables.icons.lucide.SquarePen
+import com.composables.icons.lucide.WandSparkles
 import com.composables.icons.lucide.X
 import me.rerere.momoly.R
 import me.rerere.momoly.data.api.ReasoningLevel
 import me.rerere.momoly.extension.QuickReply
 import me.rerere.momoly.ui.api.ProviderIcon
 import me.rerere.momoly.ui.components.AppIconButton
-import me.rerere.momoly.ui.components.reasoningIcon
-import me.rerere.momoly.ui.components.Space8
 import me.rerere.momoly.ui.components.Space12
-import me.rerere.momoly.ui.components.Space16
+import me.rerere.momoly.ui.components.Space8
 import me.rerere.momoly.ui.components.noRippleClickable
+import me.rerere.momoly.ui.components.reasoningIcon
+import me.rerere.momoly.ui.theme.WeChatTypingText
+import me.rerere.momoly.ui.theme.weChatColors
 
-@Composable
-private fun KelivoDrawerIcon(modifier: Modifier = Modifier) {
-    Icon(
-        painter = painterResource(R.drawable.list),
-        contentDescription = stringResource(R.string.menu),
-        modifier = modifier,
-        tint = MaterialTheme.colorScheme.primary,
-    )
-}
+private val ChatHeaderHeight = 44.dp
+private val ChatInputBarInset = 8.dp
 
+/** 聊天返回首页；只保留搜索操作，位置和时间由共享世界状态提供。 */
 @Composable
-internal fun ChatTopBar(title: String?, subtitle: String?, onDrawer: () -> Unit, onNewChat: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).statusBarsPadding().padding(vertical = Space8),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        KelivoDrawerIcon(
-            Modifier.noRippleClickable { onDrawer() }
-                .padding(start = Space16, top = Space12, bottom = Space12, end = Space12)
-                .size(24.dp),
-        )
-        Column(Modifier.weight(1f)) {
-            if (title != null) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            if (subtitle != null) {
-                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+internal fun ChatTopBar(
+    title: String,
+    typing: Boolean,
+    onBack: () -> Unit,
+    onSearch: () -> Unit,
+    time: String = "08:00",
+    characterLocation: String = "家",
+) {
+    val colors = weChatColors()
+    Column(Modifier.fillMaxWidth().background(colors.headerBackground).statusBarsPadding()) {
+        Box(Modifier.fillMaxWidth().height(ChatHeaderHeight)) {
+            AppIconButton(
+                icon = Lucide.ChevronLeft,
+                contentDescription = stringResource(R.string.back),
+                onClick = onBack,
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp),
+                tint = colors.iconTint,
+                size = 40.dp,
+                iconSize = 24.dp,
+            )
+            Text(title, Modifier.align(Alignment.Center).padding(horizontal = 56.dp),
+                color = colors.incomingText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            AppIconButton(
+                icon = Lucide.Search,
+                contentDescription = stringResource(R.string.search_chats),
+                onClick = onSearch,
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp),
+                tint = colors.iconTint,
+                size = 40.dp,
+                iconSize = 22.dp,
+            )
         }
-        Icon(
-            Lucide.MessageCirclePlus, "New Chat",
-            Modifier.noRippleClickable { onNewChat() }
-                .padding(start = Space12, top = Space12, bottom = Space12, end = Space16).size(24.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.chat_character_location, characterLocation),
+                color = colors.secondaryText, fontSize = 12.sp)
+            Text(time, color = colors.secondaryText, fontSize = 12.sp)
+        }
+        if (typing) {
+            WeChatTypingText(stringResource(R.string.chat_typing_indicator),
+                Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp))
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = colors.headerDivider)
     }
 }
 
+/**
+ * 微信式输入栏：灰底、白色圆角输入框、绿色发送键；附件/模型/搜索/思考/图片生成收进“+”面板，
+ * 输入行保持干净的一行，避免和微信原生的输入体验产生割裂。
+ *
+ * 参数签名与旧版保持一致：ChatContent 只负责接线，视觉重构不牵动调用方。
+ */
 @Composable
 internal fun ChatBottomArea(
     state: TextFieldState,
@@ -140,46 +166,60 @@ internal fun ChatBottomArea(
     onQuickReply: (QuickReply) -> Unit = {},
     enterToSend: Boolean = true,
 ) {
+    val colors = weChatColors()
     val hasContent = state.text.isNotBlank() || attachments.isNotEmpty()
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).navigationBarsPadding().padding(horizontal = Space16, vertical = Space8)) {
-        // 快捷回复行（UI 插槽扩展）：位于输入卡片上方，可横向滚动
-        if (quickReplies.isNotEmpty()) {
-            LazyRow(
-                Modifier.fillMaxWidth().padding(bottom = Space8),
-                horizontalArrangement = Arrangement.spacedBy(Space8),
-            ) {
-                itemsIndexed(quickReplies) { _, qr ->
-                    Text(
-                        qr.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .clickable { onQuickReply(qr) }
-                            .padding(horizontal = Space12, vertical = Space8),
-                    )
+
+    Column(Modifier.fillMaxWidth().background(colors.inputBarBackground)) {
+        HorizontalDivider(thickness = 0.5.dp, color = colors.divider)
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = ChatInputBarInset, vertical = 6.dp),
+        ) {
+            // 快捷回复行：微信式小胶囊，横向滚动，位于输入行上方
+            if (quickReplies.isNotEmpty()) {
+                LazyRow(
+                    Modifier.fillMaxWidth().padding(bottom = Space8),
+                    horizontalArrangement = Arrangement.spacedBy(Space8),
+                ) {
+                    itemsIndexed(quickReplies) { _, qr ->
+                        Text(
+                            text = qr.label,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            color = colors.incomingText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(colors.panelTile)
+                                .clickable { onQuickReply(qr) }
+                                .padding(horizontal = Space12, vertical = 6.dp),
+                        )
+                    }
                 }
             }
-        }
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerLow)) {
-            // 编辑态：输入框内部最上方显示"编辑中"，右侧取消按钮 X
+            // 编辑态提示：说明当前发送会原地更新已有消息，右侧 X 可以退出编辑
             if (editing) {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = Space12, end = Space8, top = 6.dp),
+                    Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Lucide.SquarePen, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Lucide.SquarePen, null, Modifier.size(14.dp), tint = colors.sendButton)
                     Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.editing_in_progress), style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = stringResource(R.string.editing_in_progress),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        color = colors.sendButton,
+                    )
                     Spacer(Modifier.weight(1f))
                     Icon(
-                        Lucide.X, stringResource(R.string.cancel),
-                        Modifier.size(32.dp).noRippleClickable { onCancelEdit() }.padding(8.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        Lucide.X,
+                        stringResource(R.string.cancel),
+                        Modifier.size(28.dp).noRippleClickable { onCancelEdit() }.padding(7.dp),
+                        tint = colors.iconTint,
                     )
                 }
             }
@@ -188,167 +228,186 @@ internal fun ChatBottomArea(
                 InputAttachmentRow(
                     attachments = attachments,
                     onRemove = onRemoveAttachment,
-                    modifier = Modifier.padding(start = Space12, end = Space12, top = Space12),
+                    modifier = Modifier.padding(bottom = 6.dp),
                 )
             }
-            // 展开按钮与输入文本同级（同一行）：图标随占位文本垂直居中，左右间距与底部工具行一致
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                BasicTextField(
-                    state = state,
-                    textStyle = MaterialTheme.typography.titleSmall.copy(color = MaterialTheme.colorScheme.onSurface),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    // 限高走 lineLimits 而非 heightIn：BTF2 在测量阶段自己滚动内部内容，
-                    // 外部限高只会裁掉超出部分
-                    lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 6),
-                    // 回车发送：软键盘用 Send 动作；硬件 Enter（非 Shift）在 modifier 里拦截为发送，Shift+Enter 保留换行
-                    keyboardOptions = if (enterToSend) {
-                        KeyboardOptions(imeAction = ImeAction.Send)
-                    } else {
-                        KeyboardOptions.Default
-                    },
-                    onKeyboardAction = if (enterToSend) ({ onSend() }) else null,
-                    modifier = Modifier.weight(1f)
-                        .padding(
-                            start = Space12, end = Space8,
-                            top = if (attachments.isEmpty()) 12.dp else 8.dp,
-                            bottom = if (attachments.isEmpty()) 12.dp else 8.dp,
-                        )
-                        .heightIn(min = 40.dp)
-                        .then(if (enterToSend) Modifier.onPreviewKeyEvent { event ->
-                            if (event.type == KeyEventType.KeyUp && event.key == Key.Enter && !event.isShiftPressed) {
-                                onSend()
-                                true
-                            } else false
-                        } else Modifier),
-                    decorator = TextFieldDecorator { inner ->
-                        // CenterStart：空态占位文本在字段内垂直居中，与右侧展开图标对齐
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                            if (state.text.isEmpty()) {
-                                Text(stringResource(R.string.input_hint), style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            inner()
-                        }
-                    },
-                )
-                // 内联操作小图标：透明容器点击显圆形按压背景，尺寸/右缘间距与底部工具行一致
+            // 输入行：+、输入框、发送键三者底部对齐——多行输入时按钮贴着底边，不随文字高度上浮
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 AppIconButton(
-                    icon = Lucide.Maximize,
-                    contentDescription = stringResource(R.string.expand),
-                    onClick = onExpand,
-                    modifier = Modifier.padding(end = Space12),
+                    icon = if (showAttachment) Lucide.X else Lucide.Plus,
+                    contentDescription = stringResource(
+                        if (showAttachment) R.string.close else R.string.chat_tools,
+                    ),
+                    onClick = onToggleAttachment,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                    tint = colors.iconTint,
                     size = 36.dp,
-                    iconSize = 24.dp,
+                    iconSize = 22.dp,
                 )
-            }
-            Row(Modifier.fillMaxWidth().padding(start = Space12, end = Space12, bottom = Space8), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                // 左侧工具图标组：统一 spacedBy(Space8) 间距，AppIconButton 点击时显示圆形按压背景
-                Row(horizontalArrangement = Arrangement.spacedBy(Space8), verticalAlignment = Alignment.CenterVertically) {
-                    // 模型选择器：只显示提供商图标（随所选模型变化）。
-                    // AppIconButton 只接受固定 ImageVector，这里手工包一层圆形可点击区以承载 ProviderIcon
-                    Box(
-                        Modifier.size(36.dp).clip(CircleShape).clickable { onSelectModel() },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (currentModelId.isNotBlank()) {
-                            ProviderIcon(currentModelId, size = 24.dp)
+                Spacer(Modifier.width(4.dp))
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .heightIn(min = 40.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(colors.inputFieldBackground),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BasicTextField(
+                        state = state,
+                        textStyle = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, color = colors.incomingText),
+                        cursorBrush = SolidColor(colors.sendButton),
+                        // 限高走 lineLimits 而非 heightIn：BTF2 在测量阶段自己滚动内部内容，
+                        // 外部限高只会裁掉超出部分
+                        lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 6),
+                        // 回车发送：软键盘用 Send 动作；硬件 Enter（非 Shift）在 modifier 里拦截为发送，Shift+Enter 保留换行
+                        keyboardOptions = if (enterToSend) {
+                            KeyboardOptions(imeAction = ImeAction.Send)
                         } else {
-                            Icon(Lucide.Package, stringResource(R.string.select_model),
-                                Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    // 模型内置搜索开启时显示内置搜索图标；否则外部搜索开启时显示所选提供商图标，关闭时显示默认地球图标
-                    if (builtInSearchEnabled) {
-                        AppIconButton(
-                            icon = Lucide.Earth,
-                            contentDescription = stringResource(R.string.model_builtin_search),
-                            onClick = onOpenSearch,
-                            size = 36.dp,
-                            iconSize = 24.dp,
-                        )
-                    } else if (searchEnabled && searchProvider.isNotBlank()) {
-                        Box(
-                            Modifier.size(36.dp).clip(CircleShape).clickable { onOpenSearch() },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            ProviderIcon(searchProvider, size = 24.dp)
-                        }
-                    } else {
-                        AppIconButton(
-                            icon = Lucide.Earth,
-                            contentDescription = stringResource(R.string.web_search),
-                            onClick = onOpenSearch,
-                            size = 36.dp,
-                            iconSize = 24.dp,
-                        )
-                    }
-                    // 思考预算：灯泡光线数量即档位，着色与输入区其它图标一致
-                    AppIconButton(
-                        icon = reasoningIcon(reasoning),
-                        contentDescription = stringResource(R.string.thinking_budget),
-                        onClick = onSelectReasoning,
-                        size = 36.dp,
-                        iconSize = 24.dp,
+                            KeyboardOptions.Default
+                        },
+                        onKeyboardAction = if (enterToSend) ({ onSend() }) else null,
+                        modifier = Modifier.weight(1f)
+                            .padding(start = Space12, end = 4.dp, top = 9.dp, bottom = 9.dp)
+                            .heightIn(min = 22.dp)
+                            .then(if (enterToSend) Modifier.onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyUp && event.key == Key.Enter && !event.isShiftPressed) {
+                                    onSend()
+                                    true
+                                } else false
+                            } else Modifier),
+                        decorator = TextFieldDecorator { inner ->
+                            // CenterStart：空态占位文本在字段内垂直居中，与右侧展开图标对齐
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                                if (state.text.isEmpty()) {
+                                    Text(
+                                        text = stringResource(R.string.input_hint),
+                                        fontSize = 16.sp,
+                                        lineHeight = 22.sp,
+                                        color = colors.secondaryText,
+                                    )
+                                }
+                                inner()
+                            }
+                        },
                     )
-                    if (imageGenerationEnabled) {
-                        AppIconButton(
-                            icon = Lucide.Image,
-                            contentDescription = stringResource(R.string.image_generation_settings),
-                            onClick = onOpenImageGenerationSettings,
-                            size = 36.dp,
-                            iconSize = 24.dp,
-                        )
-                    }
+                    // 全屏编辑入口：微信没有这个动作，收进输入框右缘，弱化成次要图标
+                    AppIconButton(
+                        icon = Lucide.Maximize,
+                        contentDescription = stringResource(R.string.expand),
+                        onClick = onExpand,
+                        modifier = Modifier.padding(end = 4.dp),
+                        tint = colors.secondaryText,
+                        size = 32.dp,
+                        iconSize = 18.dp,
+                    )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(Space8), verticalAlignment = Alignment.CenterVertically) {
-                    // 附件展开/折叠（Plus ↔ X）
-                    AppIconButton(
-                        icon = if (showAttachment) Lucide.X else Lucide.Plus,
-                        contentDescription = stringResource(
-                            if (showAttachment) R.string.close else R.string.add,
-                        ),
-                        onClick = onToggleAttachment,
-                        size = 36.dp,
-                        iconSize = 24.dp,
-                    )
-                    Box(
-                        Modifier.size(36.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (generating || hasContent) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceContainerHighest
-                            )
-                            .clickable { if (generating) onStop() else onSend() },
-                        contentAlignment = Alignment.Center,
-                    ) {
+                Spacer(Modifier.width(Space8))
+                Box(
+                    Modifier
+                        .padding(bottom = 4.dp)
+                        .width(56.dp)
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (generating || hasContent) colors.sendButton else colors.panelTile)
+                        .clickable { if (hasContent) onSend() else if (generating) onStop() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (generating && !hasContent) {
                         Icon(
-                            if (generating) Lucide.Square else Lucide.ArrowUp,
-                            if (generating) stringResource(R.string.stop) else stringResource(R.string.send),
-                            Modifier.size(if (generating) 16.dp else 22.dp),
-                            tint = if (generating || hasContent) MaterialTheme.colorScheme.onPrimary
-                                   else MaterialTheme.colorScheme.onSurfaceVariant
+                            Lucide.Square,
+                            stringResource(R.string.stop),
+                            Modifier.size(14.dp),
+                            tint = colors.onSendButton,
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.send),
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp,
+                            color = if (hasContent) colors.onSendButton else colors.secondaryText,
                         )
                     }
                 }
             }
-        }
-        AnimatedVisibility(visible = showAttachment) {
-            Column(Modifier.fillMaxWidth().padding(top = Space8), horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(horizontalArrangement = Arrangement.Center) {
-                    AttachBtn(Lucide.Camera, stringResource(R.string.take_photo), onClick = onCamera); Spacer(Modifier.width(Space8))
-                    AttachBtn(Lucide.Image, stringResource(R.string.gallery), onClick = onGallery); Spacer(Modifier.width(Space8))
-                    AttachBtn(Lucide.Paperclip, stringResource(R.string.file), onClick = onFile)
+            // 微信式工具面板：拍照/相册/文件/模型 + 联网搜索/思考预算/图片生成，每行四列
+            AnimatedVisibility(visible = showAttachment) {
+                Column(Modifier.fillMaxWidth().padding(top = Space8)) {
+                    Row(Modifier.fillMaxWidth()) {
+                        ChatToolCell(stringResource(R.string.take_photo), onCamera) {
+                            Icon(Lucide.Camera, null, Modifier.size(28.dp), tint = colors.iconTint)
+                        }
+                        ChatToolCell(stringResource(R.string.gallery), onGallery) {
+                            Icon(Lucide.Image, null, Modifier.size(28.dp), tint = colors.iconTint)
+                        }
+                        ChatToolCell(stringResource(R.string.file), onFile) {
+                            Icon(Lucide.Paperclip, null, Modifier.size(28.dp), tint = colors.iconTint)
+                        }
+                        ChatToolCell(stringResource(R.string.select_model), onSelectModel) {
+                            if (currentModelId.isNotBlank()) {
+                                ProviderIcon(currentModelId, size = 30.dp)
+                            } else {
+                                Icon(Lucide.Package, null, Modifier.size(28.dp), tint = colors.iconTint)
+                            }
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth()) {
+                        ChatToolCell(stringResource(R.string.web_search), onOpenSearch) {
+                            // 内置搜索用地球图标；外部搜索显示所选提供商品牌图标
+                            if (!builtInSearchEnabled && searchEnabled && searchProvider.isNotBlank()) {
+                                ProviderIcon(searchProvider, size = 30.dp)
+                            } else {
+                                Icon(Lucide.Earth, null, Modifier.size(28.dp), tint = colors.iconTint)
+                            }
+                        }
+                        ChatToolCell(stringResource(R.string.thinking_budget), onSelectReasoning) {
+                            Icon(reasoningIcon(reasoning), null, Modifier.size(28.dp), tint = colors.iconTint)
+                        }
+                        if (imageGenerationEnabled) {
+                            ChatToolCell(stringResource(R.string.image_generation_settings), onOpenImageGenerationSettings) {
+                                Icon(Lucide.WandSparkles, null, Modifier.size(28.dp), tint = colors.iconTint)
+                            }
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
     }
 }
 
+/** 微信工具面板的一格：56dp 白色圆角方块图标 + 12sp 文字，整格可点。 */
 @Composable
-private fun AttachBtn(icon: ImageVector, label: String, onClick: () -> Unit = {}) {
-    Column(Modifier.width(109.dp).height(80.dp).clip(RoundedCornerShape(Space8)).background(MaterialTheme.colorScheme.primaryContainer).clickable { onClick() }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-        Spacer(Modifier.height(Space8))
-        Text(label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+private fun RowScope.ChatToolCell(
+    label: String,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit,
+) {
+    val colors = weChatColors()
+    Column(
+        Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(vertical = Space8),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(colors.panelTile),
+            contentAlignment = Alignment.Center,
+        ) {
+            icon()
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            color = colors.secondaryText,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

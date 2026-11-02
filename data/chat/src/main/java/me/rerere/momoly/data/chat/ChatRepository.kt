@@ -63,7 +63,7 @@ object ChatRepository {
         )
     }
 
-    data class SearchResult(val sessionId: String, val title: String, val content: String)
+    data class SearchResult(val sessionId: String, val title: String, val content: String, val timestamp: Long)
 
     suspend fun searchMessages(
         context: Context,
@@ -71,7 +71,7 @@ object ChatRepository {
         query: String,
         limit: Int = 100,
     ): List<SearchResult> = dao(context).searchMessages(charFile, query, limit).map {
-        SearchResult(it.sessionId, it.title, it.content)
+        SearchResult(it.sessionId, it.title, it.content, it.timestamp)
     }
 
     /** 列出全部会话，按更新时间倒序 */
@@ -177,6 +177,19 @@ object ChatRepository {
             message = msg.toEntity(sessionId),
             timedWiJson = if (timedWi.isEmpty()) "" else json.encodeToString(timedWi),
             updatedAt = System.currentTimeMillis(),
+        )
+    }
+
+    suspend fun commitReply(
+        context: Context,
+        sessionId: String,
+        message: ChatMessage,
+        timedWorldInfo: Map<String, Int>,
+        localVariables: Map<String, String>?,
+    ) {
+        dao(context).commitReply(
+            message.toEntity(sessionId), json.encodeToString(timedWorldInfo),
+            localVariables?.let { json.encodeToString(it) }, System.currentTimeMillis(),
         )
     }
 

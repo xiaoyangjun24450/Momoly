@@ -24,6 +24,7 @@ fun ChatScreen(
         effects = viewModel.effects,
         frontendEvents = viewModel.frontendEvents,
         onAction = viewModel::dispatch,
+        onClearContactHistory = viewModel::clearContactHistory,
         frontendRpc = viewModel::frontendRpc,
         themeMode = themeMode,
         onThemeModeChange = onThemeModeChange,

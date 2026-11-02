@@ -1,4 +1,13 @@
 <resources>
+    <string name="home_manage_contact">Manage contact</string>
+    <string name="home_reset_contact">Reset chat history</string>
+    <string name="home_delete_contact">Delete contact</string>
+    <string name="home_default_contact_reset_only">The built-in contact can only have its chat history reset</string>
+    <string name="home_reset_contact_confirm">Clear all chats with “%1$s”? The character card will remain and pending replies will stop. This cannot be undone.</string>
+    <string name="home_delete_contact_confirm">Delete “%1$s” and all their chats? Shared resources such as worldbooks will remain. This cannot be undone.</string>
+    <string name="home_contact_reset_done">Chat history reset</string>
+    <string name="home_contact_deleted">Contact deleted</string>
+    <string name="home_contact_operation_failed">Operation did not complete: %1$s</string>
     <string name="app_name">Momoly</string>
 
     <!-- Common -->
@@ -118,6 +127,9 @@
     <string name="send">Send</string>
     <string name="remove">Remove</string>
     <string name="input_hint">Type a message…</string>
+    <string name="chat_typing_indicator">Typing</string>
+    <string name="time_yesterday">Yesterday</string>
+    <string name="chat_tools">Tools</string>
     <string name="select_model">Select Model</string>
     <string name="select_model_hint">Tap to select a model</string>
     <string name="select_character">Select Character</string>
@@ -870,4 +882,22 @@
     <string name="stats_output_tokens">Output tokens</string>
     <string name="stats_cached_tokens">Tokens saved by cache</string>
     <string name="stats_launch_count">App launch count</string>
+
+    <!-- 世界首页与联系人 -->
+    <string name="home_contacts">Contacts</string>
+    <string name="home_worlds">Worlds</string>
+    <string name="home_add_contact">Add contact</string>
+    <string name="home_unassigned_world">Unassigned world</string>
+    <string name="home_user_location">I am at %1$s</string>
+    <string name="home_no_contacts">No contacts here yet. Tap + to add a character card.</string>
+    <string name="home_no_worlds">Add a character card to find their world here.</string>
+    <string name="home_contact_count">%1$d contacts</string>
+    <string name="home_current_world">Current world</string>
+    <string name="chat_character_location">Character location · %1$s</string>
+    <string name="contact_added">Contact added</string>
+    <string name="contact_import_failed">Could not add contact: %1$s</string>
+    <string name="contact_other_world_title">This character belongs to another world</string>
+    <string name="contact_other_world_message">This character belongs to “%1$s”, not your current world. Go there and add this contact?</string>
+    <string name="contact_go_to_world">Go and add</string>
+    <string name="contact_cancel_add">Cancel adding</string>
 </resources>

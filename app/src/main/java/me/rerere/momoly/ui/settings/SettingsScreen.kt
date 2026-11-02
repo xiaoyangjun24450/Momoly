@@ -62,6 +62,7 @@ fun SettingsScreen(
     onNavigateToTts: () -> Unit = {},
     onNavigateToSummarize: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
+    embedded: Boolean = false,
 ) {
     val context = LocalContext.current
     val controller = LocalAppContainer.current.features.settings
@@ -177,7 +178,7 @@ fun SettingsScreen(
         ThemeMode.DARK -> Lucide.Moon
     }
 
-    SettingsSubPage(stringResource(R.string.settings), onBack) {
+    SettingsSubPage(stringResource(R.string.settings), onBack, showTopBar = !embedded) {
         SettingsSection(stringResource(R.string.general_settings)) {
             SettingsRow(
                 { Icon(Lucide.Globe, null, Modifier.size(24.dp),

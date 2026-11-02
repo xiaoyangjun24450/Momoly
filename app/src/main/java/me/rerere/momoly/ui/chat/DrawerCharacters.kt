@@ -16,6 +16,7 @@ internal data class DrawerCharacter(
     val lastMessage: String,
     val pinned: Boolean,
     val updatedAt: Long,
+    val worldName: String = "",
 )
 
 /**
@@ -51,6 +52,7 @@ internal class DrawerCharacterController(
                 lastMessage = previewOf(session),
                 pinned = session?.pinned == true,
                 updatedAt = session?.updatedAt ?: 0L,
+                worldName = library.cards[fileName]?.worldName.orEmpty(),
             )
         }
         // 卡片已删除但聊天还在：保留入口，否则这些聊天从抽屉里再也进不去

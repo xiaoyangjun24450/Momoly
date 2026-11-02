@@ -157,40 +157,14 @@ fun CharacterListScreen(onBack: () -> Unit, onSelect: (CharacterCard) -> Unit = 
         }
     }
 
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
-        scope.launch {
-            showAddSheet = false
-            var imported = 0
-            var failed = 0
-            for (uri in uris) {
-                try {
-                    controller.import(uri)
-                    imported++
-                } catch (_: Exception) {
-                    failed++
-                }
-            }
-            if (imported > 0) Toast.makeText(
-                context,
-                resources.getQuantityString(R.plurals.toast_imported_files_fmt, imported, imported),
-                Toast.LENGTH_SHORT,
-            ).show()
-            if (failed > 0) Toast.makeText(
-                context,
-                resources.getQuantityString(R.plurals.toast_import_failed_count_fmt, failed, failed),
-                Toast.LENGTH_SHORT,
-            ).show()
-            refresh()
-        }
-    }
+    val importContact = rememberContactImporter { refresh() }
 
     if (showAddSheet) {
         AddItemSheet(
             title = stringResource(R.string.add_character),
             nameLabel = stringResource(R.string.char_name_label),
             importLabel = stringResource(R.string.import_character_card),
-            onImport = { importLauncher.launch("*/*") },
+            onImport = { showAddSheet = false; importContact() },
             onCreate = ::saveNewCharacter,
             onDismiss = { showAddSheet = false },
         )

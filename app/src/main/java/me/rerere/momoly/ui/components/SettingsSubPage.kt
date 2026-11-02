@@ -35,6 +35,7 @@ fun SettingsSubPage(
     scrollState: ScrollState? = null,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
     actions: (@Composable () -> Unit)? = null,
+    showTopBar: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val contentScrollState = scrollState ?: rememberScrollState()
@@ -43,7 +44,7 @@ fun SettingsSubPage(
         // 否则滚动视口底部一直在键盘后面，点击时 bringIntoView 会把光标滚到被遮挡的位置
         modifier = Modifier.imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { AppTopBar(title, onBack, actions) },
+        topBar = { if (showTopBar) AppTopBar(title, onBack, actions) },
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding)

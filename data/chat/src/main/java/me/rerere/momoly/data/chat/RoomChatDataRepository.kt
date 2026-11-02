@@ -22,7 +22,7 @@ class RoomChatDataRepository(
         ChatRepository.latestMessagePreviews(appContext, sessionIds)
     override suspend fun searchMessages(characterFile: String, query: String, limit: Int) =
         ChatRepository.searchMessages(appContext, characterFile, query, limit).map {
-            ChatDataRepository.SearchResult(it.sessionId, it.title, it.content)
+            ChatDataRepository.SearchResult(it.sessionId, it.title, it.content, it.timestamp)
         }
     override suspend fun count() = ChatRepository.count(appContext)
     override suspend fun get(id: String) = ChatRepository.get(appContext, id)
@@ -36,6 +36,8 @@ class RoomChatDataRepository(
         ChatRepository.putMessage(appContext, sessionId, message)
     override suspend fun commitGeneration(sessionId: String, message: ChatMessage, timedWorldInfo: Map<String, Int>) =
         ChatRepository.commitGeneration(appContext, sessionId, message, timedWorldInfo)
+    override suspend fun commitReply(sessionId: String, message: ChatMessage, timedWorldInfo: Map<String, Int>, localVariables: Map<String, String>?) =
+        ChatRepository.commitReply(appContext, sessionId, message, timedWorldInfo, localVariables)
     override suspend fun switchAlternative(sessionId: String, timestamp: Long, direction: Int) =
         ChatRepository.switchAlt(appContext, sessionId, timestamp, direction)
     override suspend fun deleteMessage(sessionId: String, timestamp: Long) =

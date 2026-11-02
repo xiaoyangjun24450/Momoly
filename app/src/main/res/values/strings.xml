@@ -1,4 +1,13 @@
 <resources>
+    <string name="home_manage_contact">管理联系人</string>
+    <string name="home_reset_contact">重置聊天记录</string>
+    <string name="home_delete_contact">删除联系人</string>
+    <string name="home_default_contact_reset_only">内置默认联系人只能重置聊天记录</string>
+    <string name="home_reset_contact_confirm">清空与「%1$s」的全部聊天记录？角色卡会保留，正在发送的回复会停止。此操作无法撤销。</string>
+    <string name="home_delete_contact_confirm">删除「%1$s」及其全部聊天记录？世界书等共享资料会保留。此操作无法撤销。</string>
+    <string name="home_contact_reset_done">聊天记录已重置</string>
+    <string name="home_contact_deleted">联系人已删除</string>
+    <string name="home_contact_operation_failed">操作未完成：%1$s</string>
     <string name="app_name">Momoly</string>
 
     <!-- Common -->
@@ -118,6 +127,9 @@
     <string name="send">发送</string>
     <string name="remove">移除</string>
     <string name="input_hint">输入消息与AI聊天</string>
+    <string name="chat_typing_indicator">对方正在输入中</string>
+    <string name="time_yesterday">昨天</string>
+    <string name="chat_tools">工具</string>
     <string name="select_model">选择模型</string>
     <string name="select_model_hint">点击选择模型</string>
     <string name="select_character">选择角色卡</string>
@@ -868,4 +880,22 @@
     <string name="stats_output_tokens">输出 Token</string>
     <string name="stats_cached_tokens">缓存节省 Token</string>
     <string name="stats_launch_count">应用启动次数</string>
+
+    <!-- 世界首页与联系人 -->
+    <string name="home_contacts">联系人</string>
+    <string name="home_worlds">世界</string>
+    <string name="home_add_contact">添加联系人</string>
+    <string name="home_unassigned_world">未归属世界</string>
+    <string name="home_user_location">我在%1$s</string>
+    <string name="home_no_contacts">这里还没有联系人，点击右上角 + 添加角色卡</string>
+    <string name="home_no_worlds">添加角色卡后，就能在这里找到他的世界</string>
+    <string name="home_contact_count">%1$d 位联系人</string>
+    <string name="home_current_world">当前世界</string>
+    <string name="chat_character_location">角色位置 · %1$s</string>
+    <string name="contact_added">联系人已添加</string>
+    <string name="contact_import_failed">添加失败：%1$s</string>
+    <string name="contact_other_world_title">这个角色来自另一个世界</string>
+    <string name="contact_other_world_message">这个角色不属于当前世界，而是来自“%1$s”。是否前往他的世界并添加联系人？</string>
+    <string name="contact_go_to_world">前往并添加</string>
+    <string name="contact_cancel_add">取消添加</string>
 </resources>

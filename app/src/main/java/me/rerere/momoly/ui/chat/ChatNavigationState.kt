@@ -8,6 +8,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 
 /** 覆盖在聊天页之上的全屏页面。 */
 internal enum class ChatDestination {
+    Home,
     Settings,
     FontSize,
     Characters,
@@ -34,6 +35,7 @@ internal fun rememberChatNavigationStack(
 ): SnapshotStateList<ChatDestination> {
     return rememberSaveable(saver = ChatNavigationSaver) {
         mutableStateListOf<ChatDestination>().apply {
+            add(ChatDestination.Home)
             if (startAtSettings) add(ChatDestination.Settings)
         }
     }

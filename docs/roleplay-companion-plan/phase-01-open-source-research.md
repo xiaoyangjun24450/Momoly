@@ -55,10 +55,10 @@
 
 ### 4.1 当前代码已经做了什么
 
-- [CharacterRepository.kt:563](/home/xyj/muyang_ws/Momoly/data/resources/src/main/java/me/rerere/momoly/data/character/CharacterRepository.kt:563) 可识别 JSON 和 PNG，提取 `chara`、`ccv3`，处理 `tEXt`/`zTXt`，有效 V3 载荷优先。无需再引入一套 Node PNG 解析器。
-- [CharacterParser.kt:7](/home/xyj/muyang_ws/Momoly/data/resources/src/main/java/me/rerere/momoly/data/character/CharacterParser.kt:7) 主要是宽松映射：使用 `optString`、`optJSONArray`，从 `data` 或根对象读取字段。**可解析不等于已做版本、字段类型和完整性校验。**
-- [CharacterRepository.kt:235](/home/xyj/muyang_ws/Momoly/data/resources/src/main/java/me/rerere/momoly/data/character/CharacterRepository.kt:235) 允许没有世界书；书名为空时生成“角色名 世界书”。这两点都与已确认准入规则冲突。
-- [WorldBookRepository.kt:171](/home/xyj/muyang_ws/Momoly/data/resources/src/main/java/me/rerere/momoly/data/worldbook/WorldBookRepository.kt:171) 把内嵌书保存为新副本，并分配新 ID；不是按同名书合并。
+- [CharacterRepository.kt:563](../../data/resources/src/main/java/me/rerere/momoly/data/character/CharacterRepository.kt) 可识别 JSON 和 PNG，提取 `chara`、`ccv3`，处理 `tEXt`/`zTXt`，有效 V3 载荷优先。无需再引入一套 Node PNG 解析器。
+- [CharacterParser.kt:7](../../data/resources/src/main/java/me/rerere/momoly/data/character/CharacterParser.kt) 主要是宽松映射：使用 `optString`、`optJSONArray`，从 `data` 或根对象读取字段。**可解析不等于已做版本、字段类型和完整性校验。**
+- [CharacterRepository.kt:235](../../data/resources/src/main/java/me/rerere/momoly/data/character/CharacterRepository.kt) 允许没有世界书；书名为空时生成“角色名 世界书”。这两点都与已确认准入规则冲突。
+- [WorldBookRepository.kt:171](../../data/resources/src/main/java/me/rerere/momoly/data/worldbook/WorldBookRepository.kt) 把内嵌书保存为新副本，并分配新 ID；不是按同名书合并。
 - 导入已有异常清理，但主要针对本次新建的侧文件。以后修改已有共享世界书时，仅删除新文件不能撤销已发生的合并，提交过程需要一并考虑。
 
 ### 4.2 三种参考实现的差别
@@ -104,7 +104,7 @@
 需要先解决的具体兼容点：
 
 1. **世界名称和文件名分开。** 使用书内名称归类，不能使用经过文件名清理或自动加后缀的名称作为世界身份。建议只去首尾空白后精确比较，是否忽略大小写另定，不能模糊匹配合并不同世界。
-2. **条目名称映射。** 候选是非空 `name` 优先，回退非空 `comment`，与 Risu 的思路接近；两者不同应显示差异并保留原字段。本地 [WorldBookParser.kt:31](/home/xyj/muyang_ws/Momoly/data/resources/src/main/java/me/rerere/momoly/data/worldbook/WorldBookParser.kt:31) 当前只读取 `comment`，需要补映射。
+2. **条目名称映射。** 候选是非空 `name` 优先，回退非空 `comment`，与 Risu 的思路接近；两者不同应显示差异并保留原字段。本地 [WorldBookParser.kt:31](../../data/resources/src/main/java/me/rerere/momoly/data/worldbook/WorldBookParser.kt) 当前只读取 `comment`，需要补映射。
 3. **无名条目不能全部当成同名。** 规范允许无名条目。候选是作为独立条目追加并提示无法按名称去重；不能直接用空字符串相等而丢条目，也不把第一个关键词猜成正式标题。是否要求用户补名仍待决定。
 4. **名称和 ID 不是同一个东西。** 不同书的 `id=0` 很常见；不能拿这个当作同一条目。本地解析结果按整数 ID 放进 Map，同一输入出现重复 ID 时可能被后项覆盖。应在转换前识别，追加时分配不冲突的内部标识，保留来源 ID；若扩展引用旧 ID，不能无依据批量改写。
 5. **旧条目要完整保留。** 不仅保留 `content`，还包括启用状态、关键词、插入位置、优先级、扩展和未知字段。合并以原始条目对象为依据，避免经精简模型重建导致信息丢失。
@@ -186,12 +186,12 @@ flowchart LR
 
 | 位置 | 当前行为 / 影响 |
 | --- | --- |
-| [PromptBuilder.kt:293](/home/xyj/muyang_ws/Momoly/domain/generation/src/main/java/me/rerere/momoly/domain/PromptBuilder.kt:293) | 卡片的 `system_prompt` / `post_history_instructions` 可以覆盖预设 `main` / `jailbreak`。已有 `forbidOverrides` 可利用，但还需处理示例、深度提示、世界书和扩展中的冲突要求，不能仅依赖这个开关。 |
-| [ConversationOps.kt:20](/home/xyj/muyang_ws/Momoly/domain/generation/src/main/java/me/rerere/momoly/domain/ConversationOps.kt:20) | 新会话直接把原始开场白及备选加入 assistant 消息；即使普通生成加了检查，这里仍会绕过。 |
-| [ChatGenerationOrchestrator.kt:107](/home/xyj/muyang_ws/Momoly/feature/chat/src/main/java/me/rerere/momoly/ui/chat/ChatGenerationOrchestrator.kt:107) | `onUpdate` 写入 UI overlay，并发出含文本的流式事件；只在生成结束检查已经太晚。 |
-| [ChatGenerationRunner.kt:92](/home/xyj/muyang_ws/Momoly/feature/chat/src/main/java/me/rerere/momoly/ui/chat/ChatGenerationRunner.kt:92) | 生成返回后立即提交正式消息；检查应在正式提交之前接入。 |
-| [GenerationEngine.kt:239](/home/xyj/muyang_ws/Momoly/domain/generation/src/main/java/me/rerere/momoly/domain/GenerationEngine.kt:239) | 停止可能留下部分正文；请求异常会将错误文字追加到正文缓冲。线上模式需要区分候选、完成、失败与取消，不能把错误提示当角色消息送审后发布。 |
-| [ChatSessionActionCoordinator.kt:39](/home/xyj/muyang_ws/Momoly/feature/chat/src/main/java/me/rerere/momoly/ui/chat/ChatSessionActionCoordinator.kt:39) | 仍可新建话题，切换角色也可按设置新建。当前“进入最近会话”不等于“每个角色只有一个会话”。 |
+| [PromptBuilder.kt:293](../../domain/generation/src/main/java/me/rerere/momoly/domain/PromptBuilder.kt) | 卡片的 `system_prompt` / `post_history_instructions` 可以覆盖预设 `main` / `jailbreak`。已有 `forbidOverrides` 可利用，但还需处理示例、深度提示、世界书和扩展中的冲突要求，不能仅依赖这个开关。 |
+| [ConversationOps.kt:20](../../domain/generation/src/main/java/me/rerere/momoly/domain/ConversationOps.kt) | 新会话直接把原始开场白及备选加入 assistant 消息；即使普通生成加了检查，这里仍会绕过。 |
+| [ChatGenerationOrchestrator.kt:107](../../feature/chat/src/main/java/me/rerere/momoly/ui/chat/ChatGenerationOrchestrator.kt) | `onUpdate` 写入 UI overlay，并发出含文本的流式事件；只在生成结束检查已经太晚。 |
+| [ChatGenerationRunner.kt:92](../../feature/chat/src/main/java/me/rerere/momoly/ui/chat/ChatGenerationRunner.kt) | 生成返回后立即提交正式消息；检查应在正式提交之前接入。 |
+| [GenerationEngine.kt:239](../../domain/generation/src/main/java/me/rerere/momoly/domain/GenerationEngine.kt) | 停止可能留下部分正文；请求异常会将错误文字追加到正文缓冲。线上模式需要区分候选、完成、失败与取消，不能把错误提示当角色消息送审后发布。 |
+| [ChatSessionActionCoordinator.kt:39](../../feature/chat/src/main/java/me/rerere/momoly/ui/chat/ChatSessionActionCoordinator.kt) | 仍可新建话题，切换角色也可按设置新建。当前“进入最近会话”不等于“每个角色只有一个会话”。 |
 
 重新生成失败时应保留原先已发布的合格回复，不用新候选提前覆盖它。角色原始叙事开场白可以保留供阶段 3 使用，线上发布的是另行通过检查的消息。
 

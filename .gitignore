@@ -29,3 +29,11 @@ Thumbs.db
 
 # Claude Code (local permissions, not for sharing)
 .claude/
+
+# Local debugging and generated previews; keep source assets and README images
+/debug-artifacts/
+/screenshots/wechat-*.png
+*.log
+*.trace
+*.perfetto-trace
+*.hprof
