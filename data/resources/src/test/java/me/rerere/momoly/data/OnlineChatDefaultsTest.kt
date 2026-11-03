@@ -148,14 +148,14 @@ class OnlineChatDefaultsTest {
         val presetFile = File(PresetRepository.presetsDir(context), "原默认预设.json")
         val bookFile = File(WorldBookRepository.worldDir(context), "原共用规则.json")
         val oldPreset = JSONObject(presetFile.readText()).apply {
-            getJSONObject("extensions").getJSONObject("momoly").put("version", 2)
+            getJSONObject("extensions").getJSONObject("momoly").put("version", 3)
             put("prompts", JSONArray().put(JSONObject()
                 .put("identifier", "main").put("role", "system").put("content", "旧默认内容")))
             put("prompt_order", JSONArray().put(JSONObject().put("character_id", 100001)
                 .put("order", JSONArray().put(JSONObject().put("identifier", "main").put("enabled", true)))))
         }
         val oldBook = JSONObject(bookFile.readText()).apply {
-            getJSONObject("extensions").getJSONObject("momoly").put("version", 1)
+            getJSONObject("extensions").getJSONObject("momoly").put("version", 2)
             getJSONObject("entries").getJSONObject("0").put("content", "旧共用规则")
         }
         presetFile.writeText(oldPreset.toString())
@@ -175,7 +175,7 @@ class OnlineChatDefaultsTest {
         assertEquals("原默认预设", loadedPreset.name)
         assertTrue(loadedPreset.prompts.any { it.identifier == "momoly_current_turn" && it.enabled })
         assertFalse(loadedPreset.prompts.any { it.content.contains("旧默认内容") })
-        // 从不含经典段落的版本 2 升级后，验证它真正进入发送前的系统提示，而非只存进 JSON。
+        // 用旧版占位内容验证整份默认资源被更新，并实际进入模型提示。
         val built = PromptBuilder.build(
             card = loaded.card,
             userName = "用户",
@@ -186,6 +186,12 @@ class OnlineChatDefaultsTest {
         assertTrue(built.preHistory.first().content.contains("观天之道，执天之行"))
         assertTrue(built.preHistory.any { it.content.contains("当前是 已有关联 与 用户") })
         assertTrue(built.postHistory.any { it.content.contains("只输出 已有关联 会实际发送的正文") })
+        assertTrue(built.postHistory.any { it.content.contains("短反应和口语碎片") })
+        assertTrue(built.depthInjections.any { it.content.contains("【接梗与短反应】") })
+        assertEquals(4, JSONObject(presetFile.readText()).getJSONObject("extensions")
+            .getJSONObject("momoly").getInt("version"))
+        assertEquals(3, JSONObject(bookFile.readText()).getJSONObject("extensions")
+            .getJSONObject("momoly").getInt("version"))
         assertEquals(book.id, loaded.worldBooks.single().id)
         assertEquals("原共用规则", loaded.worldBooks.single().name)
         assertTrue(loaded.worldBooks.single().entries.getValue(0).content.contains("信息差与事实"))
