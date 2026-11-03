@@ -4,6 +4,7 @@ import me.rerere.momoly.data.api.ApiConfig
 import me.rerere.momoly.data.api.ApiConfigRepository
 import me.rerere.momoly.data.api.ApiProvider
 import me.rerere.momoly.data.api.ModelInfo
+import me.rerere.momoly.data.api.ModelType
 import me.rerere.momoly.data.api.ImageGenerationSettings
 import me.rerere.momoly.data.api.ReasoningLevel
 import org.junit.Assert.assertEquals
@@ -95,7 +96,40 @@ class ChatModelControllerTest {
 
         val enabled = disabled.copy(enabled = true)
         assertEquals(enabled to "model", controller.resolveProvider(null, ApiConfig(listOf(enabled), "provider::model")))
-        assertNull(controller.resolveProvider(null, ApiConfig(listOf(enabled), "provider::missing")))
+        assertEquals(enabled to "model", controller.resolveProvider(null, ApiConfig(listOf(enabled), "provider::missing")))
+        assertNull(controller.providerFor("provider::missing", ApiConfig(listOf(enabled))))
+    }
+
+    @Test
+    fun automaticChatSelectionSkipsImageAndDisabledProvidersAndRepairsStaleSelection() {
+        val source = FakeChatModelDataSource().apply { defaultModel = "image::draw" }
+        val controller = ChatModelController(source)
+        val image = ApiProvider(id = "image", type = "gradio",
+            models = listOf(ModelInfo(id = "draw", type = ModelType.IMAGE)))
+        val disabled = provider("disabled", "chat").copy(enabled = false)
+        val text = provider("text", "chat")
+        val config = ApiConfig(listOf(image, disabled, text), "missing::model")
+        assertEquals("text::chat", controller.effectiveModelSpec(null, config))
+        assertNull(controller.effectiveModelSpec(null, config.copy(providers = listOf(image, disabled))))
+    }
+
+    @Test
+    fun manualImageSelectionStillWorksButOpeningChatDoesNotDefaultToImage() {
+        val image = ApiProvider(id = "image", type = "gradio",
+            models = listOf(ModelInfo(id = "draw", type = ModelType.IMAGE)))
+        val config = ApiConfig(listOf(image, provider("text", "chat")), "image::draw")
+        val state = ChatModelStateHolder(ChatModelController(FakeChatModelDataSource()), object : ApiConfigRepository {
+            override fun load() = config
+            override fun save(config: ApiConfig) = Unit
+        })
+        assertEquals("text::chat", state.selectedModelSpec)
+        state.select(null, "image", "draw")
+        assertEquals("image::draw", state.selectedModelSpec)
+        assertEquals(image to "draw", state.resolveProvider())
+        state.select(null, "missing", "model")
+        assertEquals("image::draw", state.selectedModelSpec)
+        state.reload(null)
+        assertEquals("text::chat", state.selectedModelSpec)
     }
 
     private class FakeChatModelDataSource : ChatModelDataSource {

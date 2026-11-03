@@ -282,6 +282,8 @@ internal fun ChatContent(
                             }
                         },
                         currentModelId = displayModelId,
+                        imageInputEnabled = displayProv?.model(displayModelId)?.inputModalities
+                            ?.contains(me.rerere.momoly.data.api.Modality.IMAGE) == true,
                         reasoning = model.reasoning,
                         imageGenerationEnabled = model.imageGenerationAvailable,
                         generating = generation.running,

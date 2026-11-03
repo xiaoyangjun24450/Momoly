@@ -8,6 +8,20 @@ import org.json.JSONObject
 import org.junit.Test
 
 class PromptMessageAssemblerTest {
+    @Test fun imageOnlyUserMessageRetainsActualBytes() {
+        val directory = java.nio.file.Files.createTempDirectory("momoly-image").toFile()
+        try {
+            val bytes = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 1, 2, 3)
+            java.io.File(directory, "photo.jpg").writeBytes(bytes)
+            val result = PromptMessageAssembler.assemble(PromptBuilder.Built(),
+                listOf(ChatMessage("user", images = listOf("photo.jpg"))), directory)
+            assertEquals("user", result.single().role)
+            assertEquals("", result.single().content)
+            assertEquals("image/jpeg", result.single().images.single().mimeType)
+            assertTrue(java.util.Base64.getDecoder().decode(result.single().images.single().base64).contentEquals(bytes))
+        } finally { directory.deleteRecursively() }
+    }
+
     @Test fun quoteLimitCountsEmojiAsOneCharacter() {
         val quote = me.rerere.momoly.data.chat.MessageQuote(7, "assistant", "林夏", "😀".repeat(1_001))
         val result = PromptMessageAssembler.assemble(PromptBuilder.Built(),

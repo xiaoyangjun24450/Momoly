@@ -4,6 +4,7 @@ import me.rerere.momoly.data.api.ApiConfig
 import me.rerere.momoly.data.api.ApiProvider
 import me.rerere.momoly.data.api.ImageGenerationSettings
 import me.rerere.momoly.data.api.ReasoningLevel
+import me.rerere.momoly.data.api.ModelType
 
 interface ChatModelDataSource {
     fun characterModel(characterName: String): String
@@ -25,8 +26,13 @@ class ChatModelController(
             ?.let(dataSource::characterModel)
             ?.takeIf { it.isNotBlank() }
         val defaultModel = dataSource.defaultChatModel().takeIf { it.isNotBlank() }
-        return listOfNotNull(characterModel, defaultModel, apiConfig.currentModel.takeIf { it.isNotBlank() })
-            .firstOrNull { isAvailable(it, apiConfig) }
+        val preferred = listOfNotNull(characterModel, defaultModel, apiConfig.currentModel.takeIf { it.isNotBlank() })
+        val enabledChatModels = apiConfig.providers.filter { it.enabled && it.type != "gradio" }
+            .flatMap { provider ->
+                provider.models.filter { it.type == ModelType.CHAT && it.id.isNotBlank() }
+                    .map { "${provider.id}::${it.id}" }
+            }
+        return preferred.firstOrNull { it in enabledChatModels } ?: enabledChatModels.firstOrNull()
     }
 
     fun select(characterName: String?, modelSpec: String): ReasoningLevel {
@@ -60,11 +66,4 @@ class ChatModelController(
         return if (provider?.model(modelId) != null) provider to modelId else null
     }
 
-    private fun isAvailable(modelSpec: String, apiConfig: ApiConfig): Boolean {
-        val providerId = modelSpec.substringBefore("::")
-        val modelId = modelSpec.substringAfter("::", "")
-        return modelId.isNotBlank() && apiConfig.providers.any {
-            it.id == providerId && it.enabled && it.model(modelId) != null
-        }
-    }
 }

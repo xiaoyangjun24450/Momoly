@@ -19,6 +19,39 @@ import org.junit.Test
 
 class GenerationEngineTest {
     @Test
+    fun fallbackModelIsRecordedAndUsedForToolContinuation() = runBlocking {
+        val requests = mutableListOf<GenerationStreamRequest>()
+        val gateway = GenerationGateway { request, onEvent ->
+            requests += request
+            if (requests.size == 1) {
+                onEvent(GenerationEvent.ModelSelected("backup-provider", "backup-model"))
+                StreamEnd(toolCalls = listOf(ApiToolCall("call", "search", "{}")))
+            } else {
+                onEvent(GenerationEvent.ContentDelta("answer"))
+                StreamEnd()
+            }
+        }
+        val result = GenerationEngine(gateway).run(
+            apiMessages = listOf(ApiMessage("user", "question")),
+            genMessage = ChatMessage(role = "assistant", model = "original", alts = listOf(MsgAlt())),
+            providerId = "original-provider", providerName = "Original", modelId = "original",
+            built = PromptBuilder.Built(), streaming = false,
+            toolExecutor = object : GenerationToolExecutor {
+                override fun describe(call: ApiToolCall): MsgSearch? = null
+                override suspend fun execute(call: ApiToolCall) = "found" to null
+            },
+            errorText = { it.message.orEmpty() }, onUpdate = {},
+        )
+        assertTrue(requests.first().allowFallback)
+        assertEquals(false, requests.last().allowFallback)
+        assertEquals("backup-provider", requests.last().providerId)
+        assertEquals("backup-model", requests.last().modelId)
+        assertEquals("backup-model", result.model)
+        assertEquals("backup-model", result.alts.single().model)
+        assertEquals("answer", result.content)
+    }
+
+    @Test
     fun gatewayEventsAreMergedInEmissionOrder() = runBlocking {
         val gateway = GenerationGateway { _, onEvent ->
             onEvent(GenerationEvent.ReasoningDelta("think"))

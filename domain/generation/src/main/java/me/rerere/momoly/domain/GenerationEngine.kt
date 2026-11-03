@@ -115,6 +115,8 @@ class GenerationEngine(
             // 记录本次组装出的完整 prompt（日志开关关闭时为空操作）
             PromptLog.record(built, providerName, modelId, apiMessages)
             var rounds = 0
+            var activeProviderId = providerId
+            var activeModelId = modelId
             while (true) {
                 val roundStart = synchronized(lock) { buf.length }
                 val reasoningRoundStart = synchronized(lock) { reasoningBuf.length }
@@ -122,15 +124,22 @@ class GenerationEngine(
                 promptTokens += estimatedInput
                 val end = gateway.stream(
                     request = GenerationStreamRequest(
-                    providerId = providerId,
-                    modelId = modelId,
+                    providerId = activeProviderId,
+                    modelId = activeModelId,
                     messages = apiMessages,
                     params = built.genParams,
                     tools = tools,
                     isCancelled = { stopFlag.get() || !runJob.isActive },
+                    allowFallback = rounds == 0,
                     ),
                 ) { event ->
                     if (stopFlag.get() || !runJob.isActive) throw GenerationCancelled()
+                    if (event is GenerationEvent.ModelSelected) {
+                        activeProviderId = event.providerId
+                        activeModelId = event.modelId
+                        cur = cur.copy(model = event.modelId)
+                        return@stream
+                    }
                     val c = (event as? GenerationEvent.ContentDelta)?.content.orEmpty()
                     val r = (event as? GenerationEvent.ReasoningDelta)?.reasoning.orEmpty()
                     if (r.isNotEmpty()) {

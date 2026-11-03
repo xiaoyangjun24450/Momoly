@@ -9,4 +9,6 @@ android {
 dependencies {
     api(project(":domain:generation"))
     api(project(":core:network"))
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.json)
 }

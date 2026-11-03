@@ -15,9 +15,11 @@ data class GenerationStreamRequest(
     val params: GenParams?,
     val tools: List<ToolSpec>,
     val isCancelled: () -> Boolean,
+    val allowFallback: Boolean = false,
 )
 
 sealed interface GenerationEvent {
+    data class ModelSelected(val providerId: String, val modelId: String) : GenerationEvent
     data class ContentDelta(val content: String) : GenerationEvent
     data class ReasoningDelta(val reasoning: String) : GenerationEvent
 }

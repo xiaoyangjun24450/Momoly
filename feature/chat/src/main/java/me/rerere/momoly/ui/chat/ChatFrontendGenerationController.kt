@@ -59,6 +59,7 @@ internal class ChatFrontendGenerationController(
                 ),
             ) { event ->
                 when (event) {
+                    is GenerationEvent.ModelSelected -> Unit
                     is GenerationEvent.ContentDelta -> {
                         content.append(event.content)
                         emitEvent(

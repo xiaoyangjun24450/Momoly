@@ -148,6 +148,7 @@ internal fun ChatBottomArea(
     onExpand: () -> Unit = {},
     onSend: () -> Unit,
     currentModelId: String = "",
+    imageInputEnabled: Boolean = false,
     reasoning: ReasoningLevel = ReasoningLevel.AUTO,
     imageGenerationEnabled: Boolean = false,
     generating: Boolean = false,
@@ -338,19 +339,27 @@ internal fun ChatBottomArea(
                     }
                 }
             }
-            // 微信式工具面板：拍照/相册/文件/模型 + 联网搜索/思考预算/图片生成，每行四列
+            // 只展示当前模型可用的图片入口，其余工具按每行四列顺次排列。
             AnimatedVisibility(visible = showAttachment) {
-                Column(Modifier.fillMaxWidth().padding(top = Space8)) {
-                    Row(Modifier.fillMaxWidth()) {
-                        ChatToolCell(stringResource(R.string.take_photo), onCamera) {
-                            Icon(Lucide.Camera, null, Modifier.size(28.dp), tint = colors.iconTint)
+                val tools = buildList<@Composable RowScope.() -> Unit> {
+                    if (imageInputEnabled) {
+                        add {
+                            ChatToolCell(stringResource(R.string.take_photo), onCamera) {
+                                Icon(Lucide.Camera, null, Modifier.size(28.dp), tint = colors.iconTint)
+                            }
                         }
-                        ChatToolCell(stringResource(R.string.gallery), onGallery) {
-                            Icon(Lucide.Image, null, Modifier.size(28.dp), tint = colors.iconTint)
+                        add {
+                            ChatToolCell(stringResource(R.string.gallery), onGallery) {
+                                Icon(Lucide.Image, null, Modifier.size(28.dp), tint = colors.iconTint)
+                            }
                         }
+                    }
+                    add {
                         ChatToolCell(stringResource(R.string.file), onFile) {
                             Icon(Lucide.Paperclip, null, Modifier.size(28.dp), tint = colors.iconTint)
                         }
+                    }
+                    add {
                         ChatToolCell(stringResource(R.string.select_model), onSelectModel) {
                             if (currentModelId.isNotBlank()) {
                                 ProviderIcon(currentModelId, size = 30.dp)
@@ -359,7 +368,7 @@ internal fun ChatBottomArea(
                             }
                         }
                     }
-                    Row(Modifier.fillMaxWidth()) {
+                    add {
                         ChatToolCell(stringResource(R.string.web_search), onOpenSearch) {
                             // 内置搜索用地球图标；外部搜索显示所选提供商品牌图标
                             if (!builtInSearchEnabled && searchEnabled && searchProvider.isNotBlank()) {
@@ -368,17 +377,26 @@ internal fun ChatBottomArea(
                                 Icon(Lucide.Earth, null, Modifier.size(28.dp), tint = colors.iconTint)
                             }
                         }
+                    }
+                    add {
                         ChatToolCell(stringResource(R.string.thinking_budget), onSelectReasoning) {
                             Icon(reasoningIcon(reasoning), null, Modifier.size(28.dp), tint = colors.iconTint)
                         }
-                        if (imageGenerationEnabled) {
+                    }
+                    if (imageGenerationEnabled) {
+                        add {
                             ChatToolCell(stringResource(R.string.image_generation_settings), onOpenImageGenerationSettings) {
                                 Icon(Lucide.WandSparkles, null, Modifier.size(28.dp), tint = colors.iconTint)
                             }
-                        } else {
-                            Spacer(Modifier.weight(1f))
                         }
-                        Spacer(Modifier.weight(1f))
+                    }
+                }
+                Column(Modifier.fillMaxWidth().padding(top = Space8)) {
+                    tools.chunked(4).forEach { row ->
+                        Row(Modifier.fillMaxWidth()) {
+                            row.forEach { tool -> tool() }
+                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
                     }
                 }
             }

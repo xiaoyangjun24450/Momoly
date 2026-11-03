@@ -84,8 +84,13 @@ class ChatModelStateHolder(
 
     fun select(characterName: String?, providerId: String, modelId: String) {
         val spec = "$providerId::$modelId"
+        if (controller.providerFor(spec, apiConfig) == null) return
         controller.select(characterName, spec)
         refreshCharacter(characterName)
+        // 自动进入聊天只选文字模型；本次明确选择图片模型仍允许生图。
+        selectedModelSpec = spec
+        reasoning = controller.reasoning(spec)
+        imageGeneration = controller.imageGeneration(spec)
     }
 
     fun updateReasoning(level: ReasoningLevel) {
