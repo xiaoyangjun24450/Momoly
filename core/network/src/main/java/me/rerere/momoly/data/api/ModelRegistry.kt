@@ -12,6 +12,9 @@ package me.rerere.momoly.data.api
  */
 object ModelRegistry {
 
+    /** App default for DeepSeek-family IDs, including provider-prefixed aliases. */
+    fun isDeepSeek(modelId: String): Boolean = "deepseek" in tokenize(modelId)
+
     data class Capabilities(
         val input: List<Modality>,
         val output: List<Modality>,
@@ -37,7 +40,7 @@ object ModelRegistry {
             tool = tool || rule.tool
             reasoning = reasoning || rule.reasoning
         }
-        vision = vision || tokens.any { it in VISION_WORDS }
+        vision = vision || isDeepSeek(modelId) || tokens.any { it in VISION_WORDS }
         imageOut = imageOut || tokens.any { it in IMAGE_OUT_WORDS }
         reasoning = reasoning || tokens.any { it in REASONING_WORDS }
         return Capabilities(

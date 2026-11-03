@@ -14,7 +14,7 @@ object ApiConfigStore {
     private const val KEY_CURRENT = "current_model"
     private const val KEY_CORRUPTED = "providers_corrupted"
     private const val KEY_SCHEMA_VERSION = "schema_version"
-    private const val SCHEMA_VERSION = 6
+    private const val SCHEMA_VERSION = 7
     private const val BUILTIN_HF_Z_IMAGE_ID = "builtin-hf-z-image-community"
     private const val BUILTIN_HF_Z_IMAGE_OFFICIAL_ID = "builtin-hf-z-image-official"
     private const val HF_Z_IMAGE_URL = "https://mrfakename-z-image-turbo.hf.space"
@@ -184,12 +184,26 @@ object ApiConfigStore {
             providers = providers,
             currentModel = p.getString(KEY_CURRENT, "") ?: "",
         ).withValidCurrentModel()
-        if (p.getInt(KEY_SCHEMA_VERSION, 1) < SCHEMA_VERSION) {
-            config = config.copy(providers = migrateBuiltInImageProviders(config.providers))
+        val storedVersion = p.getInt(KEY_SCHEMA_VERSION, 1)
+        if (storedVersion < SCHEMA_VERSION) {
+            if (storedVersion < 6) {
+                config = config.copy(providers = migrateBuiltInImageProviders(config.providers))
+            }
+            config = config.copy(providers = migrateDeepSeekImageInput(config.providers))
             saveConfig(context, config)
         }
         return config
     }
+
+    /** Apply the new default once; later manual input-modality edits remain authoritative. */
+    internal fun migrateDeepSeekImageInput(providers: List<ApiProvider>): List<ApiProvider> =
+        providers.map { provider ->
+            provider.copy(models = provider.models.map { model ->
+                if (model.type == ModelType.CHAT && ModelRegistry.isDeepSeek(model.id)) {
+                    model.copy(inputModalities = (model.inputModalities + Modality.IMAGE).distinct())
+                } else model
+            })
+        }
 
     /**
      * 第 6 版配置把内置图片提供商改为默认启用。迁移时同时补齐缺失项，并把旧版本中
@@ -263,7 +277,7 @@ object ApiConfigStore {
         val providers = providersFromJson(root.getJSONArray("providers"))
         require(providers.isNotEmpty()) { "API configuration contains no providers" }
         return ApiConfig(
-            providers = providers,
+            providers = if (root.optInt("formatVersion", 1) < 7) migrateDeepSeekImageInput(providers) else providers,
             currentModel = root.optString("currentModel"),
         ).withValidCurrentModel()
     }

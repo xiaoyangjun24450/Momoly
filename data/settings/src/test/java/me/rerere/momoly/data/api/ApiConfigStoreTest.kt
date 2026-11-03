@@ -7,6 +7,28 @@ import org.junit.Test
 
 class ApiConfigStoreTest {
     @Test
+    fun deepSeekDefaultsAndLegacyConfigsEnableImageInput() {
+        for (id in listOf("deepseek-flash", "deepseek-chat", "deepseek-reasoner", "DeepSeek-V3.2", "vendor/deepseek-r1")) {
+            assertTrue(id, Modality.IMAGE in modelInfoOf(id).inputModalities)
+        }
+        val provider = ApiProvider(enabled = false, models = listOf(
+            ModelInfo(id = "deepseek-flash"), ModelInfo(id = "other-chat"),
+            ModelInfo(id = "deepseek-image", type = ModelType.IMAGE)))
+        val migrated = ApiConfigStore.migrateDeepSeekImageInput(listOf(provider)).single()
+        assertFalse(migrated.enabled)
+        assertEquals(listOf(Modality.TEXT, Modality.IMAGE), migrated.models[0].inputModalities)
+        assertEquals(provider.models.drop(1), migrated.models.drop(1))
+        assertEquals(listOf(migrated), ApiConfigStore.migrateDeepSeekImageInput(listOf(migrated)))
+    }
+
+    @Test
+    fun oldBackupsGainDeepSeekImageInputButNewBackupsKeepManualOverride() {
+        fun backup(version: Int) = """{"formatVersion":$version,"providers":[{"id":"p","models":[{"id":"deepseek-flash","input":["TEXT"]}]}]}"""
+        assertTrue(Modality.IMAGE in ApiConfigStore.parsePortable(backup(6)).providers.single().models.single().inputModalities)
+        assertEquals(listOf(Modality.TEXT), ApiConfigStore.parsePortable(backup(7)).providers.single().models.single().inputModalities)
+    }
+
+    @Test
     fun portableConfigPreservesCustomApiPath() {
         val config = ApiConfigStore.parsePortable(
             """{"formatVersion":1,"providers":[{"id":"provider","name":"Gateway","type":"openai","baseUrl":"https://example.com/v1","apiPath":"/custom/chat","enabled":true,"models":[]}],"currentModel":""}""",
