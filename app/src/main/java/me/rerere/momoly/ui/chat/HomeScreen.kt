@@ -22,6 +22,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import me.rerere.momoly.ui.components.appClickable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -49,9 +53,14 @@ internal fun HomeRoute(
     onNavigate: (ChatDestination) -> Unit,
     onOpenCharacter: (String, String) -> Unit,
     onClearContactHistory: suspend (String) -> Unit,
+    onProfileSaved: () -> Unit,
 ) {
     val container = LocalAppContainer.current
     val context = LocalContext.current
+    val profileController = container.features.chatUserProfile
+    var homeProfile by remember(selection.name) { mutableStateOf<ChatUserProfile?>(null) }
+    var profileRevision by remember { mutableIntStateOf(0) }
+    var editingProfile by rememberSaveable { mutableStateOf(false) }
     val controller = remember(container) {
         DrawerCharacterController(container.features.characterLibrary, container.chatRepository)
     }
@@ -68,12 +77,32 @@ internal fun HomeRoute(
         loading = true
         try {
             contacts = controller.load(sessions)
+            withContext(Dispatchers.IO) { profileController.initializeWorlds(contacts.map { it.worldName }) }
+            profileRevision++
+            onProfileSaved()
             resolveHomeWorld(selection.name, contacts.map { it.worldName }.distinct())?.let(selection::select)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
             Toast.makeText(context, context.getString(R.string.list_load_failed_fmt, error.message.orEmpty()), Toast.LENGTH_LONG).show()
         } finally { loading = false }
+    }
+    LaunchedEffect(selection.name, profileRevision, loading) {
+        if (loading) return@LaunchedEffect
+        try {
+            homeProfile = withContext(Dispatchers.IO) { profileController.load(selection.name.orEmpty()) }
+            if (homeProfile?.readFailed == true) Toast.makeText(context, R.string.world_profile_recovery, Toast.LENGTH_LONG).show()
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { Toast.makeText(context, R.string.world_profile_load_failed, Toast.LENGTH_LONG).show() }
+    }
+    if (editingProfile && homeProfile != null) {
+        WorldProfileEditor(world = selection.name.orEmpty(), initial = homeProfile!!, controller = profileController,
+            onBack = { editingProfile = false }, onSaved = {
+                editingProfile = false
+                profileRevision++
+                onProfileSaved()
+            })
+        return
     }
     BackHandler(enabled = tab != HomeTab.Contacts) { tab = HomeTab.Contacts }
     HomePage(
@@ -83,6 +112,8 @@ internal fun HomeRoute(
         tab = tab,
         loading = loading,
         onTab = { tab = it },
+        profile = homeProfile,
+        onEditProfile = { editingProfile = true },
         onAddContact = addContact,
         onSelectWorld = { selection.select(it); tab = HomeTab.Contacts },
         onOpenCharacter = { onOpenCharacter(it.fileName, it.displayName) },
@@ -175,6 +206,8 @@ internal fun HomePage(
     onOpenCharacter: (DrawerCharacter) -> Unit,
     onLongPressContact: (DrawerCharacter) -> Unit = {},
     settings: @Composable () -> Unit = {},
+    profile: ChatUserProfile? = null,
+    onEditProfile: () -> Unit = {},
 ) {
     val colors = weChatColors()
     val visibleContacts = remember(contacts, selectedWorld) { contacts.filter { it.worldName == selectedWorld } }
@@ -186,6 +219,14 @@ internal fun HomePage(
             Column(Modifier.fillMaxWidth().background(colors.headerBackground).statusBarsPadding()) {
                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
+                    val avatarLabel = stringResource(R.string.world_profile_open,
+                        worldContext.worldName.ifBlank { stringResource(R.string.home_unassigned_world) })
+                    Box(Modifier.size(48.dp).testTag("home_user_avatar")
+                        .semantics { contentDescription = avatarLabel }
+                        .appClickable(enabled = profile != null, onClick = onEditProfile), contentAlignment = Alignment.Center) {
+                        WeChatAvatar(profile?.avatar, profile?.name.orEmpty(), size = 44.dp)
+                    }
+                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(worldContext.worldName.ifBlank { stringResource(R.string.home_unassigned_world) },
                             fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = colors.incomingText,

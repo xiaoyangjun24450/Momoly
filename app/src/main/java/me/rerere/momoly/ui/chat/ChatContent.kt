@@ -202,6 +202,7 @@ internal fun ChatContent(
                 onThemeModeChange = onThemeModeChange,
                 onNavigate = nav::add,
                 onClearContactHistory = onClearContactHistory,
+                onProfileSaved = { onAction(ChatAction.ReloadUserProfile) },
                 onOpenCharacter = { file, name ->
                     onAction(ChatAction.OpenCharacter(file, name))
                     nav.clear()

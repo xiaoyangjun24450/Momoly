@@ -16,6 +16,7 @@ data class ChatProfileState(
 /** 持有聊天界面使用的用户资料快照。 */
 class ChatProfileStateHolder(
     private val controller: ChatUserProfileController,
+    private val currentWorld: () -> String = { "" },
 ) {
     var name by mutableStateOf(controller.loadName())
         private set
@@ -23,14 +24,19 @@ class ChatProfileStateHolder(
     var avatar by mutableStateOf<Bitmap?>(null)
         private set
 
-    fun load(): ChatUserProfile = controller.load()
+    var loadedWorld by mutableStateOf<String?>(null)
+        private set
+    val world get() = currentWorld()
+    fun currentName(): String = if (loadedWorld == world) name else controller.loadName(world)
+    fun load(world: String): ChatUserProfile = controller.load(world)
 
-    fun apply(profile: ChatUserProfile) {
+    fun apply(world: String, profile: ChatUserProfile) {
+        loadedWorld = world
         name = profile.name
         avatar = profile.avatar
     }
 
-    fun save(name: String, description: String) {
-        controller.save(name, description)
+    suspend fun save(name: String, description: String) {
+        controller.saveWorld(world, name, description, null, replaceAvatar = false)
     }
 }

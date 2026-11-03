@@ -902,4 +902,18 @@
     <string name="contact_other_world_message">This character belongs to “%1$s”, not your current world. Go there and add this contact?</string>
     <string name="contact_go_to_world">Go and add</string>
     <string name="contact_cancel_add">Cancel adding</string>
+
+    <string name="world_profile_title">My identity in this world</string>
+    <string name="world_profile_scope">World: %1$s</string>
+    <string name="world_profile_name">Name</string>
+    <string name="world_profile_hint">This profile applies only to this world. Future chats use this name and persona; existing message text stays unchanged.</string>
+    <string name="world_profile_first_time">Set up your identity here, or copy a profile from another world.</string>
+    <string name="world_profile_open">Edit my identity in %1$s</string>
+    <string name="world_profile_copy">Copy from another world</string>
+    <string name="world_profile_no_copy">No other world profiles to copy yet</string>
+    <string name="world_profile_load_failed">Could not load the profile. Go back and try again.</string>
+    <string name="world_profile_save_failed">Could not save. Your previous profile is preserved. Please try again.</string>
+    <string name="world_profile_image_failed">Could not read the image. Please choose another.</string>
+    <string name="world_profile_saving">Saving…</string>
+    <string name="world_profile_recovery">Could not read this profile. Defaults are shown. Go back to retry, or fill in a new profile and save.</string>
 </resources>

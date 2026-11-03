@@ -900,4 +900,18 @@
     <string name="contact_other_world_message">这个角色不属于当前世界，而是来自“%1$s”。是否前往他的世界并添加联系人？</string>
     <string name="contact_go_to_world">前往并添加</string>
     <string name="contact_cancel_add">取消添加</string>
+
+    <string name="world_profile_title">当前世界的我</string>
+    <string name="world_profile_scope">所属世界：%1$s</string>
+    <string name="world_profile_name">名字</string>
+    <string name="world_profile_hint">这份资料仅用于当前世界。保存后，后续聊天将使用这里的名字和人设；已发送的消息正文不会改变。</string>
+    <string name="world_profile_first_time">还没有设置本世界的身份。可以直接填写，也可以复制其他世界的资料。</string>
+    <string name="world_profile_open">编辑我在「%1$s」的身份</string>
+    <string name="world_profile_copy">复制其他世界的资料</string>
+    <string name="world_profile_no_copy">还没有其他世界的资料可以复制</string>
+    <string name="world_profile_load_failed">资料读取失败，请返回后重试</string>
+    <string name="world_profile_save_failed">资料保存失败，原资料已保留，请重试</string>
+    <string name="world_profile_image_failed">图片读取失败，请重新选择</string>
+    <string name="world_profile_saving">正在保存…</string>
+    <string name="world_profile_recovery">资料读取失败，暂显示默认值。可返回重试，或重新填写后保存。</string>
 </resources>

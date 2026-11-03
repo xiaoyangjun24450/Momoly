@@ -21,9 +21,9 @@ class ChatUserProfileControllerTest {
         var savedName: String? = null
         var savedDescription: String? = null
 
-        override fun loadName(): String = "user"
+        override fun loadName(world: String?): String = "user"
 
-        override fun load() = ChatUserProfile("user", "", 0, null)
+        override fun load(world: String?) = ChatUserProfile("user", "", 0, null)
 
         override fun save(name: String, description: String) {
             savedName = name
@@ -33,5 +33,11 @@ class ChatUserProfileControllerTest {
         override suspend fun saveAvatar(uri: Uri): Bitmap? = null
 
         override suspend fun deleteAvatar() = Unit
+        override fun initializeWorlds(worlds: List<String>) = Unit
+        override fun worlds(): List<String> = emptyList()
+        override suspend fun previewAvatar(uri: Uri): Bitmap? = null
+        override suspend fun saveWorld(world: String, name: String, description: String, avatar: Bitmap?, replaceAvatar: Boolean) {
+            save(name, description)
+        }
     }
 }

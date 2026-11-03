@@ -3,7 +3,7 @@ package me.rerere.momoly.ui.chat
 import android.content.Context
 import java.io.File
 import me.rerere.momoly.data.settings.GlobalVariableStore
-import me.rerere.momoly.data.settings.UserProfileStore
+import me.rerere.momoly.data.settings.WorldUserProfileStore
 import me.rerere.momoly.data.settings.WorldInfoSettingsStore
 import me.rerere.momoly.data.worldbook.WorldInfoSettings
 import me.rerere.momoly.extension.Extension
@@ -21,7 +21,7 @@ internal class AndroidChatPromptEnvironment(
 
     override fun observeGlobalVariables() = GlobalVariableStore.observe(context)
 
-    override fun userDescription(): String = UserProfileStore.getDescription(context)
+    override fun userDescription(world: String): String = WorldUserProfileStore.load(context, world).description
 
     override fun worldInfoSettings(): WorldInfoSettings = WorldInfoSettingsStore.get(context)
 

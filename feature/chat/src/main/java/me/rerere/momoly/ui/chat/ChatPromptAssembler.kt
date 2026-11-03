@@ -25,7 +25,7 @@ interface ChatPromptEnvironment {
     fun globalVariables(): Map<String, String>
     fun observeGlobalVariables(): kotlinx.coroutines.flow.Flow<Map<String, String>> =
         kotlinx.coroutines.flow.flowOf(globalVariables())
-    fun userDescription(): String
+    fun userDescription(world: String): String
     fun worldInfoSettings(): WorldInfoSettings
     fun filesDir(): File
 }
@@ -99,7 +99,7 @@ class ChatPromptAssembler(
         val built = PromptBuilder.build(
             card = request.card,
             userName = request.userName,
-            userDescription = environment.userDescription(),
+            userDescription = environment.userDescription(request.card?.worldName.orEmpty()),
             worldBooks = request.worldBooks,
             preset = request.preset,
             history = buildHistory,

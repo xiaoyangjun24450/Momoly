@@ -11,16 +11,21 @@ internal class ChatProfileCoordinator(
     private val profile: ChatProfileStateHolder,
     private val promptContext: ChatPromptContextCoordinator,
 ) {
+    private var revision = 0L
     fun reload() {
+        val expected = ++revision
+        val world = profile.world
         scope.launch {
-            val loaded = withContext(Dispatchers.IO) { profile.load() }
-            profile.apply(loaded)
+            val loaded = withContext(Dispatchers.IO) { profile.load(world) }
+            if (expected == revision && world == profile.world) profile.apply(world, loaded)
         }
     }
 
     fun update(name: String, description: String) {
-        profile.save(name, description)
-        reload()
-        scope.launch { promptContext.reloadGlobalRegex() }
+        scope.launch {
+            profile.save(name, description)
+            reload()
+            promptContext.reloadGlobalRegex()
+        }
     }
 }

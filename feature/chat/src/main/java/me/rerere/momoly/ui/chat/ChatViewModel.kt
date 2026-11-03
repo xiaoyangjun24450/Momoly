@@ -104,11 +104,12 @@ class ChatViewModel(
     private val overlays get() = conversation.overlays
     private val profile = ChatProfileStateHolder(
         ChatUserProfileController(sessionDependencies.userProfileDataSource),
+        currentWorld = { currentCard?.worldName.orEmpty() },
     )
     private val profileCoordinator by lazy {
         ChatProfileCoordinator(viewModelScope, profile, promptContextCoordinator)
     }
-    private val userName get() = profile.name
+    private val userName get() = profile.currentName()
     private val input = ChatInputStateHolder()
     private val quickReplies by lazy {
         ChatQuickReplyCoordinator(generationDependencies.extensionGateway, input)
@@ -325,7 +326,9 @@ class ChatViewModel(
                 model.refreshCharacter(currentCard?.name)
             }
         }
-        profileCoordinator.reload()
+        viewModelScope.launch {
+            snapshotFlow { currentCard?.worldName.orEmpty() }.collectLatest { profileCoordinator.reload() }
+        }
     }
 
     override fun onCleared() {
@@ -347,7 +350,7 @@ class ChatViewModel(
                 generation = generationOrchestrator.uiState,
                 profile = ChatProfileState(
                     userName,
-                    profile.avatar,
+                    profile.avatar.takeIf { profile.loadedWorld == currentCard?.worldName.orEmpty() },
                     tts.speakingTimestamp,
                     tts.uiState,
                 ),
@@ -632,7 +635,7 @@ class ChatViewModel(
 
     private fun generationSnapshot(): ChatGenerationSnapshot = ChatGenerationSnapshot(
         card = currentCard,
-        userName = userName,
+        userName = sessionDependencies.userProfileDataSource.loadName(currentCard?.worldName.orEmpty()),
         worldBooks = promptContext.worldBooks,
         preset = promptContext.preset,
         promptRegex = displayRegexScripts,

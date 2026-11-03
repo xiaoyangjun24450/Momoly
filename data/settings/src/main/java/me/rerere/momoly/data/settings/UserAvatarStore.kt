@@ -66,7 +66,7 @@ object UserAvatarStore {
         UserProfileStore.setAvatarPath(context, null)
     }
 
-    private fun decodeScaled(context: Context, uri: Uri): Bitmap? = try {
+    fun decodeScaled(context: Context, uri: Uri): Bitmap? = try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
