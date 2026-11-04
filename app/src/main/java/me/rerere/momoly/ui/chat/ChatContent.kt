@@ -2,7 +2,9 @@ package me.rerere.momoly.ui.chat
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import me.rerere.momoly.data.world.PlaceholderWorldContextProvider
+import me.rerere.momoly.data.world.*
+import me.rerere.momoly.di.LocalAppContainer
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -125,7 +127,20 @@ internal fun ChatContent(
     var scrollToBottomTrigger by remember { mutableIntStateOf(0) }
 
     val worldSelection = rememberHomeWorldSelection()
-    val worldContext = PlaceholderWorldContextProvider.snapshot(worldSelection.name.orEmpty(), conversation.current?.charFile)
+    val lifeRuntime=LocalAppContainer.current.worldLife
+    val lifeUniverse by lifeRuntime.worlds.collectAsState()
+    val lifeStatus by lifeRuntime.status.collectAsState()
+    val liveWorld=lifeUniverse.worlds[worldSelection.name]
+    val liveActor=liveWorld?.actors?.get(conversation.current?.charFile)
+    val worldContext = WorldContext(worldSelection.name.orEmpty(),
+        liveWorld?.let { it.map.name(it.map.userLocation) } ?: "未设置",
+        liveWorld?.let { gameLabel(it.now) } ?: "未设置",conversation.current?.charFile,
+        liveActor?.let { a -> a.travel?.let { "前往 ${liveWorld.map.name(it.to)}" } ?: liveWorld.map.name(a.location) },liveWorld==null)
+    var showingLifeProfile by remember { mutableStateOf(false) }
+    if(showingLifeProfile) me.rerere.momoly.ui.world.CharacterLifeProfile(liveWorld,conversation.current?.charFile.orEmpty()) { showingLifeProfile=false }
+    LaunchedEffect(conversation.current?.charFile,liveActor?.unread,nav.lastOrNull()) {
+        if(nav.isEmpty()) conversation.current?.charFile?.let(lifeRuntime::markRead)
+    }
     val ctx = LocalContext.current
     val media = rememberChatMediaActions(onAction)
     val resources = LocalResources.current
@@ -258,14 +273,18 @@ internal fun ChatContent(
             modifier = Modifier.imePadding(),
             containerColor = weChatColors().chatBackground,
                 topBar = {
+                    androidx.compose.foundation.layout.Column {
                     ChatTopBar(
                         title = chatBarTitle,
-                        typing = typingVisible,
+                        typing = typingVisible || lifeStatus.activeCharacter == liveActor?.name,
                         onBack = ::goHome,
                         time = worldContext.time,
                         characterLocation = worldContext.characterLocation.orEmpty(),
                         onSearch = { nav.add(Screen.Search) },
+                        onProfile = { showingLifeProfile=true },
                     )
+                    if(liveActor!=null) me.rerere.momoly.ui.world.WorldLifeControls(lifeRuntime,liveWorld)
+                    }
                 },
                 bottomBar = {
                     ChatBottomArea(
@@ -489,8 +508,11 @@ internal fun ChatContent(
                                     // 时间文案只在消息本身变化时算一次：生成期间每条可见消息都会随流式
                                     // 更新重组，Calendar/SimpleDateFormat 放在组合里会变成每帧开销。
                                     val previousTs = msgs.getOrNull(i - 1)?.ts
-                                    val timeLabel = remember(previousTs, msg.ts, yesterdayLabel) {
-                                        if (shouldShowWeChatTime(previousTs, msg.ts)) {
+                                    val gameTs=liveWorld?.messageTimes?.get("${conversation.current?.id}:${msg.ts}")
+                                    val previousGameTs=previousTs?.let { liveWorld?.messageTimes?.get("${conversation.current?.id}:$it") }
+                                    val timeLabel = remember(previousTs, msg.ts, yesterdayLabel,gameTs,previousGameTs) {
+                                        if(liveWorld!=null) gameMessageLabel(previousGameTs,gameTs)
+                                        else if (shouldShowWeChatTime(previousTs, msg.ts)) {
                                             weChatTimeLabel(msg.ts, yesterdayLabel)
                                         } else {
                                             null

@@ -28,6 +28,7 @@ interface ChatPromptEnvironment {
     fun userDescription(world: String): String
     fun worldInfoSettings(): WorldInfoSettings
     fun filesDir(): File
+    fun livingWorldContext(characterFile: String): String = ""
 }
 
 /** 生成前的静态上下文组装；变量提交由生成提交用例负责。 */
@@ -62,6 +63,9 @@ class ChatPromptAssembler(
         val extraPre = mutableListOf<PromptBuilder.Piece>()
         val extraPost = mutableListOf<PromptBuilder.Piece>()
         val extraDepth = mutableListOf<PromptBuilder.DepthPiece>()
+        environment.livingWorldContext(request.session.charFile).takeIf(String::isNotBlank)?.let {
+            extraPost += PromptBuilder.Piece("system",it,PromptBuilder.PromptSource.EXTENSION,"当前世界")
+        }
         var historySkip = 0
         val enabledExtensions = environment.enabledExtensions()
         for (extension in enabledExtensions) {

@@ -28,6 +28,7 @@ internal fun createChatFeatureDependencies(
             generationResources = AndroidChatGenerationResources(appContext),
             searchToolDataSource = AndroidChatSearchToolDataSource(appContext),
             titleSettingsDataSource = AndroidChatTitleSettingsDataSource(appContext),
+            worldDriver = container.worldLife,
         ),
         platform = ChatPlatformDependencies(
             modelDataSource = AndroidChatModelDataSource(appContext),

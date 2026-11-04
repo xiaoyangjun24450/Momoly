@@ -18,9 +18,11 @@ internal class HomeWorldSelection(context: Context) {
     fun reload() { name = preferences.getString("selected_name", null) }
 
     fun select(world: String) {
+        me.rerere.momoly.data.settings.WorldLifeStore.select(appContext,world)
         name = world
         preferences.edit().putString("selected_name", world).apply()
     }
+    private val appContext = context.applicationContext
 }
 
 @Composable

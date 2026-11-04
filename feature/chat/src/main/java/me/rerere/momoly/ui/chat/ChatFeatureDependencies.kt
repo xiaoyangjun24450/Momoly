@@ -41,6 +41,7 @@ class ChatGenerationDependencies(
     val generationResources: ChatGenerationResources,
     val searchToolDataSource: ChatSearchToolDataSource,
     val titleSettingsDataSource: ChatTitleSettingsDataSource,
+    val worldDriver: WorldChatDriver? = null,
 )
 
 class ChatPlatformDependencies(

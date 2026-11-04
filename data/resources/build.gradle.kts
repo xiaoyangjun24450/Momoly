@@ -8,6 +8,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":data:settings"))
     implementation(project(":core:diagnostics"))
     api(project(":core:model"))
     api(libs.json)

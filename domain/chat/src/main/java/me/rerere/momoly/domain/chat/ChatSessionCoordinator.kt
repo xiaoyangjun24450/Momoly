@@ -1,6 +1,8 @@
 package me.rerere.momoly.domain.chat
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import me.rerere.momoly.data.chat.ChatSession
 import me.rerere.momoly.data.character.CharacterCard
 import me.rerere.momoly.domain.ConversationOps
@@ -47,6 +49,12 @@ fun chooseSessionAfterDelete(
 class ChatSessionCoordinator(
     private val dataSource: ChatSessionDataSource,
 ) {
+    companion object { private val contactCreation=Mutex() }
+    /** UI and foreground world pump share this gate: a contact has one durable conversation. */
+    suspend fun forCharacter(card: CharacterCard, file: String, name: String): ChatSession = contactCreation.withLock {
+        val existing=dataSource.listSummaries().firstOrNull { it.charFile==file }
+        existing?.let { dataSource.get(it.id) } ?: create(card,file,name,persist=true)
+    }
     fun observeSessions(): Flow<List<ChatSession>> = dataSource.observeSessions()
 
     suspend fun listSummaries(): List<ChatSession> = dataSource.listSummaries()

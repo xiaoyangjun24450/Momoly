@@ -43,6 +43,7 @@ internal class ChatGenerationOrchestrator(
     private val snapshot: () -> ChatGenerationSnapshot,
     private val onFailure: (Throwable) -> Unit = {},
     private val onFrontendEvent: (String, String) -> Unit = { _, _ -> },
+    private val worldDriver: WorldChatDriver? = null,
 ) {
     private var deliveryTargetTimestamp by mutableStateOf<Long?>(null)
     private val delivery = ChatReplyScheduler<ChatGenerationRunner.Result>(
@@ -60,6 +61,7 @@ internal class ChatGenerationOrchestrator(
         delivery.removeSessions(sessionIds, remove)
 
     fun stop() {
+        worldDriver?.stop()
         delivery.stop()
         generationState.stop()
     }
@@ -104,6 +106,7 @@ internal class ChatGenerationOrchestrator(
         waitForInput: Boolean = true,
     ) {
         val context = snapshot()
+        if (waitForInput && worldDriver?.submit(sessionId,context.card,provider,modelId,appendInput) == true) return
         deliveryTargetTimestamp = null
         delivery.submit(
             sessionId = sessionId,

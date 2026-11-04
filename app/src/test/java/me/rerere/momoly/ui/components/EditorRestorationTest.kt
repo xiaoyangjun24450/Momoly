@@ -97,6 +97,7 @@ class EditorRestorationTest {
         val restoration = show(container) { CharacterListScreen(onBack = {}) }
         waitForText("Draft character")
         compose.onNodeWithText("Draft character").performClick()
+        waitForText(context.getString(R.string.char_name_label))
         compose.onNode(hasSetTextAction() and hasText(context.getString(R.string.char_name_label)))
             .performTextReplacement("Restored character name")
         waitForCheckpoint("Restored character name")

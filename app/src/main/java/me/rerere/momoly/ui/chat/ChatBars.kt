@@ -89,6 +89,7 @@ internal fun ChatTopBar(
     onSearch: () -> Unit,
     time: String = "08:00",
     characterLocation: String = "家",
+    onProfile: () -> Unit = {},
 ) {
     val colors = weChatColors()
     Column(Modifier.fillMaxWidth().background(colors.headerBackground).statusBarsPadding()) {
@@ -102,7 +103,7 @@ internal fun ChatTopBar(
                 size = 40.dp,
                 iconSize = 24.dp,
             )
-            Text(title, Modifier.align(Alignment.Center).padding(horizontal = 56.dp),
+            Text(title, Modifier.align(Alignment.Center).clickable(onClick=onProfile).padding(horizontal = 56.dp),
                 color = colors.incomingText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             AppIconButton(

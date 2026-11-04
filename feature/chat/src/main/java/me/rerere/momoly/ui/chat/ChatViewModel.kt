@@ -287,6 +287,7 @@ class ChatViewModel(
                 showMessage(platformDependencies.texts.generationFailed(error.message.orEmpty()))
             },
             onFrontendEvent = ::emitFrontendEvent,
+            worldDriver = generationDependencies.worldDriver,
         )
     }
 

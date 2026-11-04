@@ -27,6 +27,8 @@ interface CharacterLibraryDataSource :
     ResourceDeleter<String> {
     fun defaultCardName(): String?
     suspend fun import(source: Uri, confirmWorld: suspend (String) -> Boolean): CharacterCard
+    suspend fun importPreview(source: Uri, confirmWorld: suspend (String) -> Boolean,
+                              confirmPreview: suspend (CharacterCard) -> Boolean): CharacterCard = import(source, confirmWorld)
     suspend fun chatCount(name: String): Int = 0
     suspend fun delete(name: String, deleteChats: Boolean, deleteAssociations: Boolean) = delete(name)
     suspend fun saveOrder(names: List<String>)
@@ -66,6 +68,9 @@ class CharacterLibraryController(
     suspend fun import(uri: Uri, confirmWorld: suspend (String) -> Boolean): CharacterCard =
         dataSource.import(uri, confirmWorld)
     suspend fun create(name: String): CharacterCard = dataSource.create(name)
+    suspend fun importPreview(uri: Uri, confirmWorld: suspend (String) -> Boolean,
+                              confirmPreview: suspend (CharacterCard) -> Boolean): CharacterCard =
+        dataSource.importPreview(uri, confirmWorld, confirmPreview)
     suspend fun delete(name: String) = dataSource.delete(name)
     suspend fun chatCount(name: String): Int = dataSource.chatCount(name)
     suspend fun delete(name: String, deleteChats: Boolean, deleteAssociations: Boolean) =

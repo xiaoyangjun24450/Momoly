@@ -1,0 +1,25 @@
+{
+  "originalPath": "D:\\desk\\微信图片_20261030000720_6778_89.png",
+  "originalSha256": "1a54510ee0f8ba10055228a1c3791bc6d2ef444beb1fde4c55d18a4bb8dfd16e",
+  "sourceType": "text",
+  "capabilities": [
+    "regex"
+  ],
+  "originalWorldEntries": 44,
+  "outputWorldEntries": 48,
+  "imageChunksPreserved": true,
+  "jsonPngParity": true,
+  "originalFieldsPreserved": true,
+  "dependencies": {
+    "host_required": [
+      "Momoly phase 2"
+    ],
+    "remote_runtime": [],
+    "newScripts": []
+  },
+  "files": {
+    "夏以昼-阶段二.json": "efec6ea479b17f56e927c04a87ca5c96493941c81a473bdee82ff86f26ba282c",
+    "夏以昼-阶段二.png": "9c33060aee0891cec0927f587d558786eef70a942a53ea9a47b92e622b694851"
+  },
+  "evidence": "offline-artifact only; runtime acceptance recorded separately in phase-02 design"
+}

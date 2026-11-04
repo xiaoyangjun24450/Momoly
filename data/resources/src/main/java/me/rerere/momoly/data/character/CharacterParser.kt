@@ -58,6 +58,7 @@ object CharacterParser {
         }
 
         return CharacterCard(
+            life = LifeCardImport.initial(d),
             name = name,
             worldName = d.optString("world_name", "").trim().ifBlank {
                 (d.optJSONObject("character_book") ?: json.optJSONObject("character_book"))

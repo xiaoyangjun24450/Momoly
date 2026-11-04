@@ -196,6 +196,7 @@ object CharacterRepository {
         context: Context,
         uri: Uri,
         defaultPresetId: String = "",
+        confirmPreview: suspend (CharacterCard) -> Boolean = { true },
         confirmWorld: suspend (String) -> Boolean = { true },
     ): CharacterCard = withContext(Dispatchers.IO) {
         val rawBytes = context.contentResolver.openInputStream(uri)?.readBytes()
@@ -222,8 +223,10 @@ object CharacterRepository {
         }
         // 确认前不写角色、头像、世界书或正则；持有已读取的输入，避免确认后文件变化。
         val worldName = charaBook.optString("name", "").trim().ifBlank { "$requestedName 世界书" }
+        LifeCardImport.prepare(context, data, charaBook, worldName)
         if (!confirmWorld(worldName)) throw CharacterImportCancelledException()
         data.put("world_name", worldName)
+        if (!confirmPreview(CharacterParser.parse(json))) throw CharacterImportCancelledException()
         mutationMutex.withLock {
             val baseName = safeFileName(requestedName)
             val name = uniqueFileName(context, requestedName)

@@ -17,6 +17,23 @@ import org.json.JSONObject
 import java.io.File
 
 object WorldBookRepository {
+    /** Project committed world facts into the editable book; original settings remain untouched. */
+    suspend fun projectLifeFacts(context: Context, name: String, facts: List<me.rerere.momoly.data.world.LifeFact>) = withContext(Dispatchers.IO) {
+        writeMutex.withLock {
+            val file=JsonFileDir.file(context,WORLD_DIR,name)
+            val root=JSONObject(file.readText())
+            var changed=false
+            me.rerere.momoly.data.character.LifeCardImport.entries(root).forEach { entry ->
+                val meta=entry.optJSONObject("extensions")?.optJSONObject("momoly") ?: return@forEach
+                if(meta.optString("kind")!="fact" || !meta.optBoolean("mutable")) return@forEach
+                val fact=facts.firstOrNull { it.id==meta.optString("id") } ?: return@forEach
+                if(entry.optString("content")!=fact.content || meta.optInt("revision")!=fact.revision) {
+                    entry.put("content",fact.content);meta.put("revision",fact.revision);meta.put("source",fact.source);changed=true
+                }
+            }
+            if(changed) JsonFileDir.atomicWriteText(file,root.toString(2))
+        }
+    }
 
     /** 角色卡抽内嵌书、导出时回填都要拼这个目录，共享一份避免字符串各处硬编码 */
     const val WORLD_DIR = "worldbooks"

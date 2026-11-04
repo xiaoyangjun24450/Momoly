@@ -40,6 +40,7 @@ internal class ChatSessionActionCoordinator(
         if (isSelecting) return
         val current = conversation.current
         val card = promptContext.card
+        if(card?.life!=null) return
         select {
             if (current != null) {
                 val latest = sessions.loadFull(current.id) ?: current
@@ -52,6 +53,8 @@ internal class ChatSessionActionCoordinator(
     /** 角色卡列表点击：进入该角色最近一次会话（与抽屉按 updatedAt 取最近会话一致）；
      *  没有会话则新建。 */
     fun openCharacter(fileName: String, displayName: String) = select {
+        val livingCard=if(fileName.isBlank()) null else resources.loadCard(fileName)
+        if(livingCard?.life!=null) return@select sessions.forCharacter(livingCard,fileName,displayName)
         val existing = if (newChatOnCharacterSwitch()) null
         else conversation.sessions.filter { it.charFile == fileName }.maxByOrNull { it.updatedAt }
         if (existing != null) {

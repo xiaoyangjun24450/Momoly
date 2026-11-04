@@ -25,7 +25,7 @@
 
 - [docs/README.md](docs/README.md) — 总览、五阶段路线、统一验收素材、已确认决策、索引
 - `docs/phase-01-contacts-and-chat/` — 阶段 1 通讯录与聊天基础（局部实现中）
-- `docs/phase-02-world-time-and-travel/` — 阶段 2 世界时间、出行与角色日程（计划）
+- `docs/phase-02-world-time-and-travel/` — 阶段 2 世界运行与角色生活（已实现主要功能，验证记录见设计文档，待用户验收）
 - `docs/phase-03-stories-and-memory/` — 阶段 3 线下故事与共享记忆（计划）
 - `docs/phase-04-proactive-messages/` — 阶段 4 主动联系与后台通知（计划）
 - `docs/phase-05-location-expansion/` — 阶段 5 地点拓展与整体验收（计划）

@@ -20,9 +20,10 @@ internal class AppContainer(
     val apiConfigRepository: ApiConfigRepository = PreferencesApiConfigRepository(context),
 ) {
     val editorDrafts: EditorDraftStorage = FileEditorDraftStorage(File(context.noBackupFilesDir, "editor_drafts"))
-    val chatRepository: ChatDataRepository = RoomChatDataRepository(context)
+    val chatRepository: ChatDataRepository = me.rerere.momoly.ui.world.LifeChatRepository(context, RoomChatDataRepository(context))
     val generationGateway: GenerationGateway = NetworkGenerationGateway(apiConfigRepository)
     val extensionGateway: ExtensionGateway = AndroidExtensionGateway(context, chatRepository)
+    val worldLife = me.rerere.momoly.ui.world.WorldLifeRuntime(context, chatRepository, apiConfigRepository, generationGateway, extensionGateway)
     val pluginHostCapabilities = AndroidPluginHostCapabilities(chatRepository)
     val features = AppFeatureControllers(context, chatRepository, apiConfigRepository)
 }

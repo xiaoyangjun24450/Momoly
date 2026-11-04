@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -40,7 +41,7 @@ import me.rerere.momoly.ui.components.AppIconButton
 import me.rerere.momoly.ui.settings.SettingsScreen
 import me.rerere.momoly.ui.theme.*
 
-internal enum class HomeTab { Contacts, Worlds, Settings }
+internal enum class HomeTab { Contacts, Map, Worlds, Settings }
 private enum class ContactOperation { Reset, Delete }
 
 @Composable
@@ -56,7 +57,11 @@ internal fun HomeRoute(
     onProfileSaved: () -> Unit,
 ) {
     val container = LocalAppContainer.current
+    val universe by container.worldLife.worlds.collectAsState()
+    val lifeWorld = universe.worlds[selection.name]
+    var profileFile by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val resources = LocalResources.current
     val profileController = container.features.chatUserProfile
     var homeProfile by remember(selection.name) { mutableStateOf<ChatUserProfile?>(null) }
     var profileRevision by remember { mutableIntStateOf(0) }
@@ -84,7 +89,7 @@ internal fun HomeRoute(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            Toast.makeText(context, context.getString(R.string.list_load_failed_fmt, error.message.orEmpty()), Toast.LENGTH_LONG).show()
+            Toast.makeText(context, resources.getString(R.string.list_load_failed_fmt, error.message.orEmpty()), Toast.LENGTH_LONG).show()
         } finally { loading = false }
     }
     LaunchedEffect(selection.name, profileRevision, loading) {
@@ -115,9 +120,12 @@ internal fun HomeRoute(
         profile = homeProfile,
         onEditProfile = { editingProfile = true },
         onAddContact = addContact,
-        onSelectWorld = { selection.select(it); tab = HomeTab.Contacts },
-        onOpenCharacter = { onOpenCharacter(it.fileName, it.displayName) },
+        onSelectWorld = { container.worldLife.switchWorld(it); selection.select(it); tab = HomeTab.Contacts },
+        onOpenCharacter = { container.worldLife.markRead(it.fileName); onOpenCharacter(it.fileName, it.displayName) },
         onLongPressContact = { selectedContact = it; operation = null },
+        map = { me.rerere.momoly.ui.world.WorldMapPage(lifeWorld) { profileFile=it } },
+        worldControls = { me.rerere.momoly.ui.world.WorldLifeControls(container.worldLife,lifeWorld) },
+        unread = lifeWorld?.actors?.mapValues { it.value.unread }.orEmpty(),
         settings = {
             SettingsScreen(
                 onBack = { tab = HomeTab.Contacts },
@@ -133,6 +141,7 @@ internal fun HomeRoute(
             )
         },
     )
+    profileFile?.let { file -> me.rerere.momoly.ui.world.CharacterLifeProfile(lifeWorld,file) { profileFile=null } }
     selectedContact?.let { contact ->
         val selectedOperation = operation
         AlertDialog(
@@ -142,6 +151,7 @@ internal fun HomeRoute(
             text = {
                 if (selectedOperation == null) {
                     Column {
+                        TextButton(onClick = { profileFile=contact.fileName; selectedContact=null },modifier=Modifier.fillMaxWidth()) { Text("角色资料") }
                         TextButton(onClick = { operation = ContactOperation.Reset }, modifier = Modifier.fillMaxWidth()) {
                             Text(stringResource(R.string.home_reset_contact))
                         }
@@ -166,6 +176,7 @@ internal fun HomeRoute(
                     scope.launch {
                         try {
                             withContext(NonCancellable) {
+                                container.worldLife.forgetConversation(contact.fileName)
                                 onClearContactHistory(contact.fileName)
                                 if (selectedOperation == ContactOperation.Delete) {
                                     check(contact.fileName != container.features.characterLibrary.defaultCardName())
@@ -173,13 +184,15 @@ internal fun HomeRoute(
                                         deleteChats = false, deleteAssociations = false)
                                 }
                             }
+                            container.worldLife.syncCards()
+                            container.worldLife.resume()
                             selectedContact = null
-                            Toast.makeText(context, context.getString(if (selectedOperation == ContactOperation.Reset)
+                            Toast.makeText(context, resources.getString(if (selectedOperation == ContactOperation.Reset)
                                 R.string.home_contact_reset_done else R.string.home_contact_deleted), Toast.LENGTH_SHORT).show()
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (error: Exception) {
-                            Toast.makeText(context, context.getString(R.string.home_contact_operation_failed,
+                            Toast.makeText(context, resources.getString(R.string.home_contact_operation_failed,
                                 error.message.orEmpty()), Toast.LENGTH_LONG).show()
                         } finally { managing = false; refresh++ }
                     }
@@ -208,6 +221,9 @@ internal fun HomePage(
     settings: @Composable () -> Unit = {},
     profile: ChatUserProfile? = null,
     onEditProfile: () -> Unit = {},
+    map: @Composable () -> Unit = {},
+    worldControls: @Composable () -> Unit = {},
+    unread: Map<String,Int> = emptyMap(),
 ) {
     val colors = weChatColors()
     val visibleContacts = remember(contacts, selectedWorld) { contacts.filter { it.worldName == selectedWorld } }
@@ -244,13 +260,15 @@ internal fun HomePage(
                         modifier = Modifier.testTag("home_add_contact"), tint = colors.iconTint)
                 }
                 HorizontalDivider(thickness = 0.5.dp, color = colors.headerDivider)
+                worldControls()
             }
         },
         bottomBar = {
             NavigationBar(containerColor = colors.inputBarBackground, tonalElevation = 0.dp) {
                 HomeTab.entries.forEach { item ->
-                    val label = stringResource(when (item) {
+                    val label = if(item==HomeTab.Map) "地图" else stringResource(when (item) {
                         HomeTab.Contacts -> R.string.home_contacts
+                        HomeTab.Map -> R.string.home_worlds
                         HomeTab.Worlds -> R.string.home_worlds
                         HomeTab.Settings -> R.string.settings
                     })
@@ -260,6 +278,7 @@ internal fun HomePage(
                         onClick = { onTab(item) },
                         icon = { Icon(when (item) {
                             HomeTab.Contacts -> Lucide.Users
+                            HomeTab.Map -> Lucide.MapPin
                             HomeTab.Worlds -> Lucide.Earth
                             HomeTab.Settings -> Lucide.Settings
                         }, null, Modifier.size(23.dp)) },
@@ -285,7 +304,7 @@ internal fun HomePage(
                     LazyColumn(Modifier.fillMaxSize().testTag("home_contacts_list")) {
                         items(visibleContacts, key = { it.fileName }) { contact ->
                             ContactRow(contact, onClick = { onOpenCharacter(contact) },
-                                onLongClick = { onLongPressContact(contact) })
+                                onLongClick = { onLongPressContact(contact) }, unread=unread[contact.fileName] ?: 0)
                         }
                     }
                 }
@@ -313,6 +332,7 @@ internal fun HomePage(
                         }
                     }
                 }
+                HomeTab.Map -> map()
                 HomeTab.Settings -> settings()
             }
         }
@@ -320,7 +340,7 @@ internal fun HomePage(
 }
 
 @Composable
-private fun ContactRow(contact: DrawerCharacter, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun ContactRow(contact: DrawerCharacter, onClick: () -> Unit, onLongClick: () -> Unit, unread: Int = 0) {
     val colors = weChatColors()
     val yesterday = stringResource(R.string.time_yesterday)
     val time = remember(contact.updatedAt, yesterday) {
@@ -333,7 +353,7 @@ private fun ContactRow(contact: DrawerCharacter, onClick: () -> Unit, onLongClic
             WeChatAvatar(contact.avatar, contact.displayName, size = 48.dp)
             Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(contact.displayName, Modifier.weight(1f), color = colors.incomingText,
+                    Text(contact.displayName + if(unread>0) " · $unread 条新消息" else "", Modifier.weight(1f), color = colors.incomingText,
                         fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(time, color = colors.timeText, fontSize = 11.sp)
                 }

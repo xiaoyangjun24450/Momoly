@@ -27,7 +27,10 @@ internal class AndroidCharacterLibraryDataSource(
     override suspend fun import(source: Uri): CharacterCard =
         CharacterRepository.import(context, source, defaultPresetId())
     override suspend fun import(source: Uri, confirmWorld: suspend (String) -> Boolean): CharacterCard =
-        CharacterRepository.import(context, source, defaultPresetId(), confirmWorld)
+        CharacterRepository.import(context, source, defaultPresetId(), confirmWorld=confirmWorld)
+    override suspend fun importPreview(source: Uri, confirmWorld: suspend (String) -> Boolean,
+                                      confirmPreview: suspend (CharacterCard) -> Boolean): CharacterCard =
+        CharacterRepository.import(context, source, defaultPresetId(), confirmPreview=confirmPreview, confirmWorld=confirmWorld)
     override suspend fun delete(key: String) = delete(key, false, false)
     override suspend fun chatCount(name: String): Int = ChatRepository.countForCharacter(context, name)
 
