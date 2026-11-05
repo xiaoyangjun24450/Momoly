@@ -123,7 +123,7 @@ internal fun HomeRoute(
         onSelectWorld = { container.worldLife.switchWorld(it); selection.select(it); tab = HomeTab.Contacts },
         onOpenCharacter = { container.worldLife.markRead(it.fileName); onOpenCharacter(it.fileName, it.displayName) },
         onLongPressContact = { selectedContact = it; operation = null },
-        map = { me.rerere.momoly.ui.world.WorldMapPage(lifeWorld) { profileFile=it } },
+        map = { me.rerere.momoly.ui.world.WorldMapPage(lifeWorld, homeProfile?.name.orEmpty()) },
         worldControls = { me.rerere.momoly.ui.world.WorldLifeControls(container.worldLife,lifeWorld) },
         unread = lifeWorld?.actors?.mapValues { it.value.unread }.orEmpty(),
         settings = {
@@ -232,6 +232,9 @@ internal fun HomePage(
         modifier = Modifier.testTag("home_screen"),
         containerColor = colors.chatBackground,
         topBar = {
+            if (tab == HomeTab.Map) {
+                Spacer(Modifier.fillMaxWidth().statusBarsPadding())
+            } else {
             Column(Modifier.fillMaxWidth().background(colors.headerBackground).statusBarsPadding()) {
                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
@@ -261,6 +264,7 @@ internal fun HomePage(
                 }
                 HorizontalDivider(thickness = 0.5.dp, color = colors.headerDivider)
                 worldControls()
+            }
             }
         },
         bottomBar = {

@@ -914,4 +914,15 @@
     <string name="world_profile_image_failed">图片读取失败，请重新选择</string>
     <string name="world_profile_saving">正在保存…</string>
     <string name="world_profile_recovery">资料读取失败，暂显示默认值。可返回重试，或重新填写后保存。</string>
+    <string name="world_map_empty">添加带地图的角色后，这里会显示世界位置。</string>
+    <string name="world_map_updating">位置和天气更新至 %1$s，正在补齐…</string>
+    <string name="world_map_weather">%1$s · %2$s</string>
+    <string name="world_map_you">你</string>
+    <string name="world_map_hint">点击连线查看耗时 · 左右滑动查看地图</string>
+    <string name="world_map_duration">耗时 %1$d 分钟</string>
+    <string name="world_map_close">关闭</string>
+    <string name="world_map_travelling">%1$s（途中）</string>
+    <string name="world_map_route">%1$s 至 %2$s，查看路线耗时</string>
+    <string name="world_clock_synced">与现实时间同步</string>
+    <string name="world_not_created">尚未建立世界</string>
 </resources>

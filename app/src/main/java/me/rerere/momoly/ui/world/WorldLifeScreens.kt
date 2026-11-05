@@ -1,7 +1,5 @@
 package me.rerere.momoly.ui.world
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -9,66 +7,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import me.rerere.momoly.R
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.rerere.momoly.data.world.*
 import me.rerere.momoly.ui.theme.weChatColors
-
-@Composable internal fun WorldMapPage(world: LifeWorld?, onProfile: (String) -> Unit = {}) {
-    val colors=weChatColors()
-    CompositionLocalProvider(LocalContentColor provides colors.incomingText) {
-    if(world==null) { Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) { Text("添加带地图的角色后，这里会显示世界位置。") }; return@CompositionLocalProvider }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).testTag("world_map"),
-        verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        Text(world.name,style=MaterialTheme.typography.titleLarge)
-        Text("当前时间 ${gameLabel(world.target)}")
-        if(world.target-world.now>GAME_MINUTE) Text("位置和天气更新至 ${gameLabel(world.now)}，正在补齐…",fontSize=12.sp)
-        Text(LifeRules.weather(world,world.map.userLocation))
-        val accent=colors.sendButton
-        val line=colors.secondaryText.copy(alpha=.5f)
-        BoxWithConstraints(Modifier.fillMaxWidth().height(320.dp).background(colors.listBackground)) {
-            val width=maxWidth; val height=maxHeight
-            Canvas(Modifier.fillMaxSize()) {
-                fun point(p: WorldPlace)=Offset(24.dp.toPx()+p.x*(size.width-48.dp.toPx()),24.dp.toPx()+p.y*(size.height-48.dp.toPx()))
-                world.map.routes.forEach { r ->
-                    val a=world.map.places.first { it.id==r.from }; val b=world.map.places.first { it.id==r.to }
-                    drawLine(line,point(a),point(b),3.dp.toPx())
-                }
-                world.map.places.forEach { drawCircle(accent,5.dp.toPx(),point(it)) }
-                drawCircle(Color(0xFF25B86B),9.dp.toPx(),point(world.map.places.first { it.id==world.map.userLocation }))
-                world.actors.values.forEach { a ->
-                    val p=world.map.places.first { it.id==a.location }
-                    drawCircle(Color(0xFFE3A84F),7.dp.toPx(),point(p))
-                }
-            }
-            world.map.places.forEach { place ->
-                val people=buildList { if(place.id==world.map.userLocation) add("你");world.actors.values.filter { it.location==place.id }.forEach { add(it.name+if(it.travel!=null)"（途中）" else "") } }
-                Text(place.name+if(people.isEmpty()) "" else "\n"+people.joinToString("、"),
-                    Modifier.offset(x=12.dp+(width-105.dp)*place.x,y=32.dp+(height-48.dp)*place.y)
-                    .widthIn(max=100.dp).background(colors.listBackground.copy(alpha=.9f)).padding(3.dp),fontSize=11.sp)
-            }
-        }
-        Text("你 · ${world.map.name(world.map.userLocation)}",fontWeight=FontWeight.SemiBold)
-        world.actors.values.forEach { actor ->
-            OutlinedCard(onClick={onProfile(actor.file)},modifier=Modifier.fillMaxWidth(),
-                colors=CardDefaults.outlinedCardColors(containerColor=colors.listBackground,contentColor=colors.incomingText)) {
-                Column(Modifier.padding(12.dp)) {
-                    Text(actor.name,fontWeight=FontWeight.SemiBold)
-                    Text(actor.travel?.let { "${world.map.name(it.from)} → ${world.map.name(it.to)} · ${gameLabel(it.arrives,false)} 到达" }
-                        ?:world.map.name(actor.location))
-                    Text(LifeRules.weather(world,actor.location),style=MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-        Text("路线耗时",style=MaterialTheme.typography.titleSmall)
-        world.map.routes.forEach { Text("${world.map.name(it.from)} ↔ ${world.map.name(it.to)} · ${it.minutes} 分钟",fontSize=12.sp) }
-    }
-    }
-}
 
 @Composable internal fun CharacterLifeProfile(world: LifeWorld?, file: String, onClose: () -> Unit) {
     val actor=world?.actors?.get(file)
@@ -107,7 +53,7 @@ import me.rerere.momoly.ui.theme.weChatColors
     Column(Modifier.fillMaxWidth().padding(horizontal=12.dp)) {
         if(universe.clockWarning.isNotBlank()) Text(universe.clockWarning,fontSize=12.sp,color=colors.secondaryText)
         Row(verticalAlignment=Alignment.CenterVertically) {
-            Text(world?.let { "${LifeRules.weather(it,it.map.userLocation)} · 与现实时间同步" } ?: "尚未建立世界",
+            Text(stringResource(if (world != null) R.string.world_clock_synced else R.string.world_not_created),
                 Modifier.weight(1f),fontSize=12.sp,color=colors.secondaryText)
         }
         status.error?.let { error ->
