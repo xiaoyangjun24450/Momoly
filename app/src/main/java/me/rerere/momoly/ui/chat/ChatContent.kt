@@ -134,7 +134,7 @@ internal fun ChatContent(
     val liveActor=liveWorld?.actors?.get(conversation.current?.charFile)
     val worldContext = WorldContext(worldSelection.name.orEmpty(),
         liveWorld?.let { it.map.name(it.map.userLocation) } ?: "未设置",
-        liveWorld?.let { gameLabel(it.now) } ?: "未设置",conversation.current?.charFile,
+        liveWorld?.let { gameLabel(it.target) } ?: "未设置",conversation.current?.charFile,
         liveActor?.let { a -> a.travel?.let { "前往 ${liveWorld.map.name(it.to)}" } ?: liveWorld.map.name(a.location) },liveWorld==null)
     var showingLifeProfile by remember { mutableStateOf(false) }
     if(showingLifeProfile) me.rerere.momoly.ui.world.CharacterLifeProfile(liveWorld,conversation.current?.charFile.orEmpty()) { showingLifeProfile=false }

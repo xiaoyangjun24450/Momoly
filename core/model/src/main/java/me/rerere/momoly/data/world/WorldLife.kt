@@ -3,11 +3,18 @@ package me.rerere.momoly.data.world
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.LocalDateTime
+import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 
 val lifeJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 const val GAME_MINUTE = 60_000L
+
+/** Local calendar encoding used by schedules; not an instant in UTC. */
+fun realWorldTime(wall: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault()): Long =
+    LocalDateTime.ofInstant(Instant.ofEpochMilli(wall), zone).toInstant(ZoneOffset.UTC).toEpochMilli()
 
 fun gameTime(text: String): Long = try {
     LocalDateTime.parse(text).toInstant(ZoneOffset.UTC).toEpochMilli()
@@ -21,6 +28,13 @@ fun gameMessageLabel(previous: Long?, current: Long?): String? {
     val differentDay = previous == null || gameDate(previous).toLocalDate() != gameDate(current).toLocalDate()
     return if (differentDay || current - (previous ?: current) >= 5 * GAME_MINUTE)
         gameLabel(current, differentDay) else null
+}
+
+fun alignScheduleDates(schedules: List<LifeSchedule>, from: Long, to: Long): List<LifeSchedule> {
+    val days = ChronoUnit.DAYS.between(gameDate(from).toLocalDate(), gameDate(to).toLocalDate())
+    return schedules.map { s ->
+        if (s.date.isBlank()) s else s.copy(date=java.time.LocalDate.parse(s.date).plusDays(days).toString())
+    }
 }
 
 @Serializable data class WorldPlace(val id: String, val name: String, val region: String = "城区", val x: Float = .5f, val y: Float = .5f)
@@ -118,6 +132,7 @@ fun validateSchedules(schedules: List<LifeSchedule>, map: WorldMap) {
     val travel: LifeTravel? = null, val activeSchedule: String = "", val nextContact: Long,
     val sessionId: String = "", val pendingInput: Long = 0, val answeredInput: Long = 0,
     val inputReadyAt: Long = 0, val draft: String = "", val unread: Int = 0,
+    val pendingAt: Long? = null,
 )
 @Serializable data class LifeDelivery(val sessionId: String, val message: me.rerere.momoly.data.chat.ChatMessage, val gameTime: Long)
 @Serializable data class LifeWorld(
@@ -125,23 +140,45 @@ fun validateSchedules(schedules: List<LifeSchedule>, map: WorldMap) {
     val actors: Map<String, LifeActor> = emptyMap(), val facts: List<LifeFact> = emptyList(),
     val revisions: List<LifeRevision> = emptyList(), val sequence: Long = 0,
     val messageTimes: Map<String, Long> = emptyMap(), val outbox: List<LifeDelivery> = emptyList(),
-    val restUntil: Long? = null,
 )
 @Serializable data class LifeUniverse(
-    val version: Int = 1, val active: String? = null, val wallAnchor: Long = 0,
+    val version: Int = 2, val active: String? = null, val wallAnchor: Long = 0,
     val elapsedAnchor: Long = 0, val boot: Int = -1, val worlds: Map<String, LifeWorld> = emptyMap(),
     val clockWarning: String = "",
+    val timeZone: String = "",
 )
 
 object LifeRules {
-    fun accrue(u: LifeUniverse, wall: Long, elapsed: Long, boot: Int): LifeUniverse {
-        val world = u.worlds[u.active]
-        val raw = if (u.wallAnchor == 0L) 0 else if (boot >= 0 && u.boot == boot && elapsed >= u.elapsedAnchor) elapsed - u.elapsedAnchor else wall - u.wallAnchor
-        val delta = raw.coerceAtLeast(0)
-        val warning = if (raw < 0) "系统时间曾倒退，世界未倒流；从当前时间继续计时。" else u.clockWarning
-        val updated = world?.copy(target = Math.addExact(world.target, Math.multiplyExact(delta, 3)))
-        return u.copy(wallAnchor = wall, elapsedAnchor = elapsed, boot = boot, clockWarning = warning,
-            worlds = if (updated == null) u.worlds else u.worlds + (updated.name to updated))
+    fun accrue(u: LifeUniverse, wall: Long, elapsed: Long, boot: Int,
+               zone: ZoneId = ZoneId.systemDefault()): LifeUniverse {
+        require(u.version in 1..2) { "世界存档版本不支持，原存档已保留" }
+        val now = realWorldTime(wall, zone)
+        val migrating = u.version == 1
+        val zoneChanged = u.timeZone.isNotBlank() && u.timeZone != zone.id
+        val backwards = u.wallAnchor != 0L && wall < u.wallAnchor
+        val warning = when {
+            migrating -> "已改用现实时间，旧加速目标已取消；原存档已备份，已有聊天保留，日期日程已接续。"
+            zoneChanged || backwards -> "手机时间或时区已改变，当前状态已校准；已有聊天保留，不重放已处理事件。"
+            else -> u.clockWarning
+        }
+        return u.copy(version=2, wallAnchor=wall, elapsedAnchor=elapsed, boot=boot, timeZone=zone.id,
+            clockWarning=warning, worlds=u.worlds.mapValues { (_, w) ->
+                if (migrating || zoneChanged || backwards || now < w.now)
+                    align(w, now, shiftDates=migrating)
+                else w.copy(target=now)
+            })
+    }
+
+    private fun align(w: LifeWorld, now: Long, shiftDates: Boolean): LifeWorld {
+        val actors = w.actors.mapValues { (_, a) -> a.copy(
+            nextContact=now+(a.nextContact-w.now).coerceAtLeast(0), activeSchedule="",
+            pendingAt=if (a.pendingInput>a.answeredInput) now else null,
+            travel=a.travel?.let { it.copy(arrives=now+(it.arrives-w.now).coerceAtLeast(0)) },
+            schedule=if (!shiftDates) a.schedule else alignScheduleDates(a.schedule,w.now,now)) }
+        val aligned=advance(w.copy(now=now, target=now, actors=actors), now)
+        return aligned.copy(actors=aligned.actors.mapValues { (_, a) -> a.copy(
+            background=a.travel?.let { "正在从${w.map.name(it.from)}前往${w.map.name(it.to)}。" }
+                ?: "现在在${w.map.name(a.location)}，${activity(a,now)?.activity ?: "自主安排"}。") })
     }
     fun select(u: LifeUniverse, name: String, wall: Long, elapsed: Long, boot: Int): LifeUniverse =
         accrue(u, wall, elapsed, boot).copy(active = name)
@@ -149,6 +186,8 @@ object LifeRules {
     fun activity(a: LifeActor, at: Long): LifeSchedule? = a.schedule.firstOrNull { it.date.isNotBlank() && it.contains(at) }
         ?: a.schedule.firstOrNull { it.date.isBlank() && it.contains(at) }
     fun availability(a: LifeActor, at: Long) = if (a.travel != null) "brief" else activity(a, at)?.availability ?: "free"
+    fun inputIsDue(w: LifeWorld, a: LifeActor): Boolean =
+        (a.pendingAt ?: w.messageTimes["${a.sessionId}:${a.pendingInput}"] ?: w.now) <= w.now
     fun weather(w: LifeWorld, location: String, at: Long = w.now): String {
         val region = w.map.places.firstOrNull { it.id == location }?.region.orEmpty()
         val choices = w.map.climates[region] ?: listOf("晴", "多云", "阴", "小雨")

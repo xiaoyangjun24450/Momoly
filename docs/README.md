@@ -17,7 +17,7 @@
 | 阶段 | 完成后可以实际体验的结果 | 文档 |
 | --- | --- | --- |
 | 1 | 导入角色卡并按世界分组，进入有角色口吻、只显示消息正文的微信式聊天 | [需求](phase-01-contacts-and-chat/需求文档.md) · [设计](phase-01-contacts-and-chat/设计文档.md) · [调研](phase-01-contacts-and-chat/调研文档.md) |
-| 2 | 3:1 世界时间与离线补齐、休息快钟、地图、日程与主动聊天、天气/关系/鉴定、动态世界书 | [需求](phase-02-world-time-and-travel/需求文档.md) · [设计](phase-02-world-time-and-travel/设计文档.md) · [调研](phase-02-world-time-and-travel/调研文档.md) |
+| 2 | 现实时间同步与离线补齐、地图、日程与主动聊天、天气/关系/鉴定、动态世界书 | [需求](phase-02-world-time-and-travel/需求文档.md) · [设计](phase-02-world-time-and-travel/设计文档.md) · [调研](phase-02-world-time-and-travel/调研文档.md) |
 | 3 | 后续接入用户出行与赴约、单人/多人线下故事、线上线下共享记忆（出行细节待设计） | [需求](phase-03-stories-and-memory/需求文档.md) · [设计](phase-03-stories-and-memory/设计文档.md) · [调研](phase-03-stories-and-memory/调研文档.md) |
 | 4 | 在阶段 2 主动聊天基础上接入后台执行、系统通知、点击会话及线下经历联动 | [需求](phase-04-proactive-messages/需求文档.md) · [设计](phase-04-proactive-messages/设计文档.md) · [调研](phase-04-proactive-messages/调研文档.md) |
 | 5 | agent 生成可实际前往的新地点，贯通完整使用流程并完成整体验收 | [需求](phase-05-location-expansion/需求文档.md) · [设计](phase-05-location-expansion/设计文档.md) · [调研](phase-05-location-expansion/调研文档.md) |
@@ -103,3 +103,5 @@
 | 5 地点拓展与整体验收 | [需求文档](phase-05-location-expansion/需求文档.md) | [设计文档](phase-05-location-expansion/设计文档.md) | [调研文档](phase-05-location-expansion/调研文档.md) |
 
 > 2026-11-04 首次收敛：原来的 `roleplay-companion-requirements.md`、`roleplay-companion-plan/`、`phase-01-status.md` 与宿主 `docs/momoly-research/` 已按阶段并入上表三篇体系，原文件归档到 `build/docs-before-cleanup/2026-11-04/`（Git 忽略、不入库），仅作追溯。
+
+2026-11-06：阶段二改为现实日期和钟点同步，完全移除时间加速；取代 2026-11-04 的 3:1、世界冻结与休息快进决定。

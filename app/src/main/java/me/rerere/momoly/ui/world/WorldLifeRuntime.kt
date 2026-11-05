@@ -24,13 +24,14 @@ import java.io.File
 import kotlin.random.Random
 
 internal data class LifeRuntimeStatus(val working: Boolean = false, val paused: Boolean = false,
-    val error: String? = null, val generated: Int = 0, val activeCharacter: String = "", val notices: List<String> = emptyList())
+    val error: String? = null, val activeCharacter: String = "")
 
 /** Foreground event pump. All state commits use the store's single writer; no Android background service. */
 internal class WorldLifeRuntime(
     private val context: Context, private val repository: ChatDataRepository,
     private val api: ApiConfigRepository, private val gateway: GenerationGateway, extensions: ExtensionGateway,
     private val typingDelay: suspend (Long) -> Unit = { delay(it) },
+    private val wallClock: () -> Long = System::currentTimeMillis,
 ) : WorldChatDriver {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val assembler = ChatPromptAssembler(AndroidChatPromptEnvironment(context,extensions))
@@ -63,7 +64,7 @@ internal class WorldLifeRuntime(
                 syncCards()
                 var rounds = 0
                 while (isActive && foreground) {
-                    WorldLifeStore.tick(context)
+                    WorldLifeStore.tick(context,wallClock())
                     if (!mutableStatus.value.paused) {
                         var progressed = false
                         supervisorScope {
@@ -78,8 +79,7 @@ internal class WorldLifeRuntime(
                                     error="已处理一批离线事件，剩余时间已保存。继续即可接着补齐。")
                             }
                         } else {
-                            val current=WorldLifeStore.read(context).let { it.worlds[it.active] }
-                            if (backlogMinutes()>0 || current?.restUntil!=null) yield()
+                            if (backlogMinutes()>0) yield()
                             else { rounds=0; withTimeoutOrNull(1000) { wake.receive() } }
                         }
                     } else withTimeoutOrNull(1000) { wake.receive() }
@@ -102,21 +102,8 @@ internal class WorldLifeRuntime(
     }
     fun switchWorld(name: String) {
         epoch++; generationJob?.cancel()
-        WorldLifeStore.select(context,name)
+        WorldLifeStore.select(context,name,wallClock())
         mutableStatus.value=LifeRuntimeStatus()
-        wake.trySend(Unit)
-        start()
-    }
-    fun rest(minutes: Int) {
-        require(minutes in 1..1440)
-        epoch++; generationJob?.cancel()
-        WorldLifeStore.tick(context)
-        val u=WorldLifeStore.read(context); val name=u.active ?: return
-        WorldLifeStore.world(context,name) { w ->
-            val target = w.target + minutes * GAME_MINUTE
-            w.copy(target=target,restUntil=target)
-        }
-        mutableStatus.value=LifeRuntimeStatus(working=true)
         wake.trySend(Unit)
         start()
     }
@@ -129,7 +116,7 @@ internal class WorldLifeRuntime(
         val w=WorldLifeStore.read(context).worlds.values.firstOrNull { file in it.actors } ?: return
         WorldLifeStore.world(context,w.name) { current ->
             val a=current.actors.getValue(file)
-            current.copy(actors=current.actors + (file to a.copy(pendingInput=0,answeredInput=0,sessionId="",draft="",unread=0,
+            current.copy(actors=current.actors + (file to a.copy(pendingInput=0,answeredInput=0,pendingAt=null,sessionId="",draft="",unread=0,
                 nextContact=LifeRules.nextContact(a,current.now))),outbox=current.outbox.filterNot { it.sessionId==a.sessionId })
         }
     }
@@ -152,7 +139,7 @@ internal class WorldLifeRuntime(
                 WorldLifeStore.register(context,card.worldName,map,LifeCardImport.facts(book).map {
                     it.copy(scope=if(it.scope=="self") f.nameWithoutExtension else it.scope,
                         binding=it.binding.replace("activity:self","activity:${f.nameWithoutExtension}"))
-                },f.nameWithoutExtension,card.name,initial,card.talkativeness)
+                },f.nameWithoutExtension,card.name,initial,card.talkativeness,wallClock())
             }
             WorldLifeStore.update(context) { u -> u.copy(worlds=u.worlds.mapValues { (_,w) ->
                 w.copy(actors=w.actors.filterKeys { it in valid })
@@ -165,19 +152,19 @@ internal class WorldLifeRuntime(
                 WorldLifeStore.world(context,world.name) { w ->
                     val a=w.actors.getValue(summary.charFile)
                     if(last.ts<=a.pendingInput || last.ts<=a.answeredInput) w else
-                        w.copy(actors=w.actors+(a.file to a.copy(sessionId=session.id,pendingInput=last.ts,inputReadyAt=0)))
+                        w.copy(actors=w.actors+(a.file to a.copy(sessionId=session.id,pendingInput=last.ts,pendingAt=w.now,inputReadyAt=0)))
                 }
             }
             val selected=context.getSharedPreferences("home_world",Context.MODE_PRIVATE).getString("selected_name",null)
-            if (selected != null && WorldLifeStore.read(context).active != selected) WorldLifeStore.select(context,selected)
+            if (selected != null && WorldLifeStore.read(context).active != selected) WorldLifeStore.select(context,selected,wallClock())
         } } finally { syncing=false }
     }
 
     override fun submit(sessionId: String, card: CharacterCard?, provider: ApiProvider, modelId: String,
                         appendInput: suspend () -> Boolean): Boolean {
         if (card?.life == null) return false
-        val current=WorldLifeStore.tick(context).worlds[card.worldName]
-        if(current?.restUntil!=null || (current!=null && current.target-current.now>5*GAME_MINUTE)) {
+        val current=WorldLifeStore.tick(context,wallClock()).worlds[card.worldName]
+        if(current!=null && current.target-current.now>5*GAME_MINUTE) {
             // Do not insert a present-day input ahead of still-unpublished historical messages.
             // appendInput owns clearing the editor, so the unsent text remains available.
             mutableStatus.value=mutableStatus.value.copy(error="请先完成世界时间补齐，再发送这条消息；输入内容已保留。")
@@ -194,10 +181,10 @@ internal class WorldLifeRuntime(
                 val session=repository.get(sessionId) ?: return@launch
                 val input=session.messages.lastOrNull { it.role=="user" } ?: return@launch
                 CharacterModelStore.set(context,session.charFile,"${provider.id}::$modelId")
-                WorldLifeStore.tick(context)
+                WorldLifeStore.tick(context,wallClock())
                 WorldLifeStore.world(context,card.worldName) { w ->
                     val a=w.actors[session.charFile] ?: return@world w
-                    w.copy(actors=w.actors + (a.file to a.copy(sessionId=sessionId,pendingInput=input.ts,
+                    w.copy(actors=w.actors + (a.file to a.copy(sessionId=sessionId,pendingInput=input.ts,pendingAt=w.now,
                         inputReadyAt=System.currentTimeMillis()+3000)))
                 }
                 resume()
@@ -235,7 +222,7 @@ internal class WorldLifeRuntime(
         }
         val ready=w.actors.values.firstOrNull { a ->
             val pending=a.pendingInput>a.answeredInput && a.inputReadyAt<=System.currentTimeMillis() &&
-                (w.messageTimes["${a.sessionId}:${a.pendingInput}"] ?: w.now)<=w.now
+                LifeRules.inputIsDue(w,a)
             LifeRules.availability(a,w.now)!="unavailable" && (pending || a.nextContact<=w.now)
         }
         if (ready != null) {
@@ -252,7 +239,6 @@ internal class WorldLifeRuntime(
                 updated=updated.copy(actors=updated.actors.mapValues { (_,a) ->
                     if (a.nextContact<=next && LifeRules.availability(a,next)=="unavailable") a.copy(nextContact=next+30*GAME_MINUTE) else a
                 })
-                if (updated.restUntil?.let { next>=it }==true) updated=updated.copy(restUntil=null)
                 updated
             }
             yield()
@@ -283,10 +269,10 @@ internal class WorldLifeRuntime(
         val card=requireNotNull(loaded.card)
         val session=session(w,a,card)
         val (provider,model)=model(a.file)
-        val isReply=a.pendingInput>a.answeredInput && (w.messageTimes["${session.id}:${a.pendingInput}"] ?: w.now)<=w.now
-        val history=session.messages.filter { message ->
-            !message.isHidden && (w.messageTimes["${session.id}:${message.ts}"] ?: w.now)<=w.now
-        }
+        val isReply=a.pendingInput>a.answeredInput && LifeRules.inputIsDue(w,a)
+        // Only committed messages exist here. Legacy calendar labels can be ahead of today's
+        // real date; they must not erase already-lived conversations from the model's context.
+        val history=session.messages.filterNot { it.isHidden }
         val datedHistory=history.map { message ->
             val at=w.messageTimes["${session.id}:${message.ts}"]
             if(at==null) message else message.copy(content="【游戏时间 ${gameLabel(at)}】\n${message.content}")
@@ -336,7 +322,7 @@ internal class WorldLifeRuntime(
             if (LifeRules.availability(a,w.now)=="brief") it.take(1).map { text -> text.take(240) } else it
         }
         if (isReply) require(parts.isNotEmpty()) { "角色未返回回复内容，待答消息已保留。" }
-        val historical=w.restUntil!=null || w.target-w.now>5*GAME_MINUTE
+        val historical=w.target-w.now>5*GAME_MINUTE
         if (parts.isEmpty()) {
             WorldLifeStore.world(context,w.name) { current ->
                 val actor=current.actors.getValue(a.file)
@@ -375,8 +361,6 @@ internal class WorldLifeRuntime(
                     true
                 }
                 if(!published) return
-                mutableStatus.value=mutableStatus.value.copy(generated=mutableStatus.value.generated+1,
-                    notices=mutableStatus.value.notices + "${a.name} · ${gameLabel(w.now)}\n$text")
             }
         } catch (cancelled: CancellationException) {
             WorldLifeStore.world(context,w.name) { current ->
@@ -428,7 +412,8 @@ internal class WorldLifeRuntime(
         日程：${a.schedule.joinToString { "${it.date} ${it.start/60}:${it.start%60}—${it.end/60}:${it.end%60} ${it.activity} ${w.map.name(it.location)} ${it.availability}" }}
         ${if(a.initial.schedule.isEmpty() && a.schedule.all { it.id=="autonomous" }) "尚未形成日常作息，请依据原角色设定在 dailySchedules 数组返回合理的每日时间段，格式同下方日程，date 留空。不要改变角色职业或编造私人经历。" else ""}
         ${if(isReply) "现在处理用户尚未得到答复的留言。" else "没有新的用户消息。根据当前活动、性格、关系、天气与聊天历史决定是否主动联系；不必每次都发，可 messages=[]。不要重复已说过的问候，不猜测未来发生的结果。"}
-        ${if(w.restUntil!=null) "用户正在休息，未回复不代表冷落；可以多次留下有关当时生活的消息，不要替用户活动。" else ""}
+        当前日期和钟点按用户手机现实时间同步，角色原设定年代只作背景；日程、今天/明天和问候均以此处当前时间为准。
+        早期聊天记录可能沿用旧世界日期，不据此编造时间倒流或穿越；当前约定以此处运行日期为准。
         私有未发送草稿（不是事实，不算说过，可以重写）：${a.draft.take(3000)}
         当前可变事实：${w.facts.filter { it.mutable && it.scope==a.file }.joinToString { "${it.id}: ${it.content}" }}
         只返回一个 JSON 对象，不要 Markdown。messages 是纯聊天正文数组；其余字段可省略。

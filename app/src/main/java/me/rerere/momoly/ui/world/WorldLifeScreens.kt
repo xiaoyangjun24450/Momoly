@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import me.rerere.momoly.data.world.*
 import me.rerere.momoly.ui.theme.weChatColors
 
@@ -26,7 +25,9 @@ import me.rerere.momoly.ui.theme.weChatColors
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).testTag("world_map"),
         verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Text(world.name,style=MaterialTheme.typography.titleLarge)
-        Text("${gameLabel(world.now)} · ${LifeRules.weather(world,world.map.userLocation)}")
+        Text("当前时间 ${gameLabel(world.target)}")
+        if(world.target-world.now>GAME_MINUTE) Text("位置和天气更新至 ${gameLabel(world.now)}，正在补齐…",fontSize=12.sp)
+        Text(LifeRules.weather(world,world.map.userLocation))
         val accent=colors.sendButton
         val line=colors.secondaryText.copy(alpha=.5f)
         BoxWithConstraints(Modifier.fillMaxWidth().height(320.dp).background(colors.listBackground)) {
@@ -82,6 +83,7 @@ import me.rerere.momoly.ui.theme.weChatColors
                 OutlinedButton(onClick={appraisal=true},modifier=Modifier.testTag("open_appraisal")) { Text("鉴定") }
             } else {
                 Text("此时此刻",fontWeight=FontWeight.SemiBold)
+                if(world.target-world.now>GAME_MINUTE) Text("正在补齐至 ${gameLabel(world.target)}；以下为已处理时刻的状态。")
                 Text(LifeRules.situation(world,actor))
                 Text("心情：${actor.mood} · ${actor.moodIntensity}/100")
                 Text("好感度：${actor.affinity}/100")
@@ -102,20 +104,11 @@ import me.rerere.momoly.ui.theme.weChatColors
     val status by runtime.status.collectAsState()
     val universe by runtime.worlds.collectAsState()
     val colors=weChatColors()
-    var choose by remember { mutableStateOf(false) }
-    var resting by remember { mutableStateOf(false) }
-    var finished by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(world?.restUntil,status.paused,status.working) {
-        if(resting && world?.restUntil==null && !status.working && !status.paused) {
-            resting=false;finished=status.generated
-        }
-    }
     Column(Modifier.fillMaxWidth().padding(horizontal=12.dp)) {
         if(universe.clockWarning.isNotBlank()) Text(universe.clockWarning,fontSize=12.sp,color=colors.secondaryText)
         Row(verticalAlignment=Alignment.CenterVertically) {
-            Text(world?.let { "${LifeRules.weather(it,it.map.userLocation)} · 世界时间 3:1" } ?: "尚未建立世界",
+            Text(world?.let { "${LifeRules.weather(it,it.map.userLocation)} · 与现实时间同步" } ?: "尚未建立世界",
                 Modifier.weight(1f),fontSize=12.sp,color=colors.secondaryText)
-            TextButton(onClick={choose=true},enabled=world!=null && world.restUntil==null) { Text("休息") }
         }
         status.error?.let { error ->
             Text(error,color=MaterialTheme.colorScheme.error,fontSize=12.sp)
@@ -124,31 +117,9 @@ import me.rerere.momoly.ui.theme.weChatColors
                 if(status.working) TextButton(onClick=runtime::stop){Text("暂停")}
             }
         }
-        if(world!=null && world.target-world.now>5*GAME_MINUTE && !resting) {
+        if(world!=null && world.target-world.now>5*GAME_MINUTE) {
             Text("正在补齐至 ${gameLabel(world.target)}，已到 ${gameLabel(world.now)}",fontSize=12.sp,color=colors.secondaryText)
             if(!status.paused) TextButton(onClick=runtime::stop){Text("稍后继续")}
         }
-    }
-    if(choose) AlertDialog(onDismissRequest={choose=false},title={Text("休息多久？")},
-        text={Column { listOf(30 to "30 分钟",120 to "2 小时",480 to "8 小时",1440 to "24 小时").forEach { (minutes,label)->
-            TextButton(onClick={ choose=false;resting=true;runtime.rest(minutes) },modifier=Modifier.fillMaxWidth()){Text(label)}
-        } }},confirmButton={},dismissButton={TextButton(onClick={choose=false}){Text("取消")}})
-    if(resting) {
-        var animationTime by remember { mutableLongStateOf(world?.now ?: 0L) }
-        LaunchedEffect(Unit) { while(true) { delay(80);animationTime+=5*GAME_MINUTE } }
-        AlertDialog(onDismissRequest={runtime.stop();resting=false},title={Text("休息中")},
-            text={Column(horizontalAlignment=Alignment.CenterHorizontally,modifier=Modifier.fillMaxWidth()) {
-                Text(gameLabel(animationTime,false),fontSize=42.sp)
-                Text(if(status.paused) status.error.orEmpty() else "正在整理这段时间的生活和留言…")
-                Text(world?.let { "已处理到 ${gameLabel(it.now)}" }.orEmpty(),fontSize=12.sp)
-            }},confirmButton={if(status.paused) TextButton(onClick=runtime::resume){Text("重试 / 继续")}},
-            dismissButton={TextButton(onClick={runtime.stop();resting=false}){Text("稍后继续")}})
-    }
-    finished?.let { count ->
-        AlertDialog(onDismissRequest={finished=null},title={Text("休息结束")},
-            text={Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("这段时间收到了 $count 条消息，已放入各自的聊天。")
-                status.notices.forEach { notice -> Text(notice,Modifier.padding(vertical=8.dp));HorizontalDivider() }
-            }},confirmButton={TextButton(onClick={finished=null}){Text("查看聊天")}})
     }
 }

@@ -104,7 +104,7 @@ class CharacterWorldImportTest {
         val before=files()
         var previewed=false
         val error=runCatching { CharacterRepository.import(context,source("Preview","Other"),confirmPreview={
-            previewed=true;assertEquals("休息中",it.life!!.background);false
+            previewed=true;assertTrue(it.life!!.background.contains("学生"));false
         }) }.exceptionOrNull()
         assertTrue(previewed)
         assertTrue(error is CharacterImportCancelledException)
@@ -119,10 +119,11 @@ class CharacterWorldImportTest {
         WorldLifeStore.world(context,"Campus") { it.copy(now=future,target=future) }
         val uri=source("Visitor","Campus");val f=File(uri.path!!);val root=JSONObject(f.readText())
         root.getJSONObject("data").getJSONObject("character_book").put("entries",JSONArray());f.writeText(root.toString())
+        val before=realWorldTime()
         val card=CharacterRepository.import(context,uri)
-        assertEquals(future,gameTime(card.life!!.initialTime))
+        assertTrue(gameTime(card.life!!.initialTime) in (before/1000*1000)..realWorldTime())
         assertEquals(future,WorldLifeStore.read(context).worlds.getValue("Campus").now)
-        assertTrue(card.life!!.background.contains("2048-06-15"))
+        assertTrue(card.life!!.background.contains(gameDate(realWorldTime()).toLocalDate().toString()))
     }
     private fun files(): Set<String> = context.filesDir.walkTopDown().filter { it.isFile }
         .map { it.relativeTo(context.filesDir).path }.toSet()
