@@ -923,6 +923,4 @@
     <string name="world_map_close">关闭</string>
     <string name="world_map_travelling">%1$s（途中）</string>
     <string name="world_map_route">%1$s 至 %2$s，查看路线耗时</string>
-    <string name="world_clock_synced">与现实时间同步</string>
-    <string name="world_not_created">尚未建立世界</string>
 </resources>

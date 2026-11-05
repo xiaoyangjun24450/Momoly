@@ -36,11 +36,13 @@ object LifeCardImport {
     fun prepare(context: Context, data: JSONObject, book: JSONObject, world: String): Prepared {
         val initial = initial(data) ?: throw IllegalArgumentException("角色缺少初始时间、初始位置和背景（extensions.momoly_life）")
         val supplied = map(book)
-        val existing = WorldLifeStore.read(context).worlds[world]
+        val wall=System.currentTimeMillis()
+        val universe=WorldLifeStore.read(context)
+        val existing = LifeRules.accrue(universe,wall,universe.elapsedAnchor,universe.boot).worlds[world]
         val map = existing?.map ?: supplied ?: throw IllegalArgumentException("无法导入：角色卡未附带世界地图，目标世界也没有可用地图。请补充世界地图后重试。")
         if (existing != null && supplied != null) require(supplied == existing.map) { "角色地图与已有世界地图不一致，请使用当前世界地图；不会覆盖或新增地点。" }
         initial.validate(map)
-        val now = realWorldTime()
+        val now = syncClockTime(existing?.target ?: gameTime(initial.initialTime),wall)
         val adapted = initial.copy(
             initialTime = gameDate(now).toString(),
             schedule = alignScheduleDates(initial.schedule,gameTime(initial.initialTime),now).filter { it.date.isBlank() ||
@@ -56,9 +58,6 @@ object LifeCardImport {
             extensions.put("momoly_original_entry",JSONObject().put("life",lifeJson.encodeToString(initial))
                 .put("scenario",data.optString("scenario")).put("first_mes",data.optString("first_mes")))
         }
-        data.put("scenario",adapted.background)
-        // A dated opening may assert events that are no longer true in the real-time world.
-        data.put("first_mes","")
         return Prepared(adapted,map,facts(book))
     }
 }

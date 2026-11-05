@@ -18,14 +18,8 @@ object WorldLifeStore {
     private fun file(context: Context) = File(context.filesDir, "world-life-v1.json")
     @Synchronized fun observe(context: Context): StateFlow<LifeUniverse> = states.getOrPut(context.filesDir.absolutePath) {
         val file = file(context)
-        var value = if (file.exists()) lifeJson.decodeFromString<LifeUniverse>(file.readText(Charsets.UTF_8)) else LifeUniverse()
-        check(value.version in 1..2) { "世界存档版本不支持，原存档已保留" }
-        if (value.version == 1) {
-            val backup = File(file.path+".before-real-time")
-            if (!backup.exists()) file.copyTo(backup)
-            value = LifeRules.accrue(value,System.currentTimeMillis(),SystemClock.elapsedRealtime(),boot(context))
-            persist(file,value)
-        }
+        val value = if (file.exists()) lifeJson.decodeFromString<LifeUniverse>(file.readText(Charsets.UTF_8)) else LifeUniverse()
+        check(value.version == 2) { "世界存档版本不支持" }
         MutableStateFlow(value)
     }
     fun read(context: Context): LifeUniverse = observe(context).value
@@ -63,9 +57,10 @@ object WorldLifeStore {
     fun register(context: Context, worldName: String, map: WorldMap, facts: List<LifeFact>, file: String,
                  name: String, initial: LifeInitial, talkativeness: Float,
                  wall: Long = System.currentTimeMillis()) = update(context) { u ->
-        val time = realWorldTime(wall)
-        val world = u.worlds[worldName] ?: LifeWorld(worldName,map,time,time,facts=facts)
-        if (file in world.actors) return@update u
+        if (file in u.worlds[worldName]?.actors.orEmpty()) return@update u
+        val current=LifeRules.accrue(u,wall,SystemClock.elapsedRealtime(),boot(context))
+        val time = syncClockTime(gameTime(initial.initialTime),wall)
+        val world = current.worlds[worldName] ?: LifeWorld(worldName,map,time,time,facts=facts)
         val schedule=alignScheduleDates(initial.schedule,gameTime(initial.initialTime),world.now)
             .ifEmpty { listOf(LifeSchedule("autonomous",0,1440,"自主安排",initial.initialLocation)) }
         val actor = LifeActor(file,name,initial,initial.initialLocation,initial.background,schedule,
@@ -73,7 +68,7 @@ object WorldLifeStore {
             nextContact = world.now + 30 * GAME_MINUTE)
         val mergedFacts=(world.facts+facts).distinctBy { it.scope to it.id }
         val added = LifeRules.advance(world.copy(actors = world.actors + (file to actor),facts=mergedFacts), world.now)
-        u.copy(worlds = u.worlds + (worldName to added))
+        current.copy(worlds = current.worlds + (worldName to added))
     }
     fun stamp(context: Context, worldName: String, session: String, timestamp: Long, at: Long? = null) = world(context,worldName) { w ->
         val key = "$session:$timestamp"

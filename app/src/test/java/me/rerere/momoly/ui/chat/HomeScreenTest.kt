@@ -76,6 +76,23 @@ class HomeScreenTest {
         assertTrue(snapshot.isPlaceholder)
     }
 
+    @Test fun previewUsesCurrentWorldIdentityWithoutRewritingTheMessage() {
+        val name=mutableStateOf("小羊君")
+        val entry=contact("Alice","Campus").copy(lastMessage="{{char}}向{{user}}问好")
+        compose.setContent {
+            ProvideWeChatColors {
+                HomePage(contacts=listOf(entry),selectedWorld="Campus",
+                    worldContext=PlaceholderWorldContextProvider.snapshot("Campus",null),
+                    tab=HomeTab.Contacts,onTab={},onAddContact={},onSelectWorld={},onOpenCharacter={},
+                    profile=ChatUserProfile(name.value,"",0L,null))
+            }
+        }
+        compose.onNodeWithText("Alice向小羊君问好").assertIsDisplayed()
+        compose.runOnIdle { name.value="另一个名字" }
+        compose.onNodeWithText("Alice向另一个名字问好").assertIsDisplayed()
+        assertEquals("{{char}}向{{user}}问好",entry.lastMessage)
+    }
+
     private fun contact(name: String, world: String) = DrawerCharacter(
         name, name, null, null, "", false, 0L, world,
     )

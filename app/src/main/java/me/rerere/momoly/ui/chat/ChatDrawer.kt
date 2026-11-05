@@ -459,7 +459,9 @@ private fun CharacterCardRow(
                         }
                     }
                     Text(
-                        character.lastMessage.ifBlank { stringResource(R.string.no_messages_yet) },
+                        me.rerere.momoly.domain.RegexEngine.applyForDisplay(character.lastMessage, emptyList(),
+                            userName=LocalAppContainer.current.features.chatUserProfile.loadName(character.worldName),
+                            charName=character.displayName).ifBlank { stringResource(R.string.no_messages_yet) },
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
                         color = colors.secondaryText,

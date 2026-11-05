@@ -104,4 +104,4 @@
 
 > 2026-11-04 首次收敛：原来的 `roleplay-companion-requirements.md`、`roleplay-companion-plan/`、`phase-01-status.md` 与宿主 `docs/momoly-research/` 已按阶段并入上表三篇体系，原文件归档到 `build/docs-before-cleanup/2026-11-04/`（Git 忽略、不入库），仅作追溯。
 
-2026-11-06：阶段二改为现实日期和钟点同步，完全移除时间加速；取代 2026-11-04 的 3:1、世界冻结与休息快进决定。
+2026-11-06：阶段二改为世界日期独立、现实钟点同步，完全移除时间加速；取代 2026-11-04 的 3:1、世界冻结与休息快进决定。

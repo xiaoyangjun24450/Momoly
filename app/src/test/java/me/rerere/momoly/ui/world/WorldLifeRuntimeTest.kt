@@ -74,6 +74,38 @@ class WorldLifeRuntimeTest {
         }
     }
 
+    @Test fun suppliedPngOpeningIsPersistedOnceWhenChatIsOpened()=runBlocking {
+        val file=CharacterRepository.listNames(context).single()
+        val card=CharacterRepository.load(context,file)
+        assertEquals("小{{user}}，明天我休假，准备回你那里一趟。",card.firstMes)
+        val coordinator=me.rerere.momoly.domain.chat.ChatSessionCoordinator(repo)
+        val first=coordinator.forCharacter(card,file,card.name)
+        val reopened=coordinator.forCharacter(card,file,card.name)
+        assertEquals(first.id,reopened.id)
+        val messages=repo.get(first.id)!!.messages
+        assertEquals(1,messages.size)
+        assertEquals("assistant",messages.single().role)
+        assertEquals(card.firstMes,messages.single().content)
+    }
+
+    @Test fun generationKeepsAuthoredScenarioAlongsideCurrentWorldState()=runBlocking {
+        val file=File(CharacterRepository.charsDir(context),"${CharacterRepository.listNames(context).single()}.json")
+        val json=org.json.JSONObject(file.readText())
+        val scenario="你们使用专属频道联系，频道暗号是蓝色纸鹤。"
+        json.getJSONObject("data").put("scenario",scenario)
+        file.writeText(json.toString())
+        val requests=mutableListOf<GenerationStreamRequest>()
+        val r=create(GenerationGateway { request,emit ->
+            requests+=request
+            emit(GenerationEvent.ContentDelta("""{"messages":[]}"""));StreamEnd()
+        })
+        r.foreground(true);elapse(60)
+        waitFor { caughtUp() };r.foreground(false)
+        assertTrue(requests.isNotEmpty())
+        assertTrue(requests.all { request -> request.messages.any { scenario in it.content } })
+        assertTrue(requests.all { "年月日使用此处世界日期" in it.messages.last().content })
+    }
+
     @Test fun suppliedPngOfflineCatchUpPublishesMultipleHistoricalMessagesInOneSession()=runBlocking {
         val prompts=mutableListOf<String>()
         val r=create(GenerationGateway { request,emit ->
@@ -217,28 +249,6 @@ class WorldLifeRuntimeTest {
             assertTrue(w.messageTimes.keys.any { it.startsWith(s.id+":") })
         }
         assertTrue(w.facts.filter { it.scope!="public" }.groupBy { it.scope }.size==2)
-    }
-    @Test fun legacyDatedPendingInputAndHistoryRemainAvailableAfterClockReset()=runBlocking {
-        val requests=mutableListOf<GenerationStreamRequest>()
-        val r=create(GenerationGateway { request,emit ->
-            requests+=request
-            emit(GenerationEvent.ContentDelta("""{"messages":["记得你之前说的事情"]}"""));StreamEnd()
-        })
-        val w=WorldLifeStore.read(context).worlds.values.single();val a=w.actors.values.single()
-        val card=CharacterRepository.load(context,a.file)
-        val session=me.rerere.momoly.domain.chat.ChatSessionCoordinator(repo).forCharacter(card,a.file,a.name)
-        val input=ChatMessage("user","改时间前请你记住的事情",ts=System.currentTimeMillis())
-        repo.putMessage(session.id,input)
-        WorldLifeStore.world(context,w.name) { it.copy(
-            actors=it.actors+(a.file to a.copy(sessionId=session.id,pendingInput=input.ts,pendingAt=clock,
-                schedule=emptyList(),travel=null,activeSchedule="")),
-            messageTimes=mapOf("${session.id}:${input.ts}" to gameTime("2099-01-01T12:00:00"))) }
-        r.foreground(true)
-        waitFor { WorldLifeStore.read(context).worlds.values.single().actors.values.single().answeredInput==input.ts }
-        r.close()
-        assertEquals(1,requests.size)
-        assertTrue(requests.single().messages.any { input.content in it.content })
-        assertTrue(requests.single().messages.last().content.contains("现在处理用户尚未得到答复的留言"))
     }
     @Test fun replayingCommittedOutboxDoesNotDuplicateMessageOrState()=runBlocking {
         val r=create(GenerationGateway { _,_ -> error("No generation should be needed") })

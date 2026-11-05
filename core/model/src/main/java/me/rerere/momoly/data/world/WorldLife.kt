@@ -16,6 +16,11 @@ const val GAME_MINUTE = 60_000L
 fun realWorldTime(wall: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault()): Long =
     LocalDateTime.ofInstant(Instant.ofEpochMilli(wall), zone).toInstant(ZoneOffset.UTC).toEpochMilli()
 
+/** Keep the world's date and use the phone's current local time of day. */
+fun syncClockTime(worldTime: Long, wall: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault()): Long =
+    gameDate(worldTime).toLocalDate().atTime(LocalDateTime.ofInstant(Instant.ofEpochMilli(wall),zone).toLocalTime())
+        .toInstant(ZoneOffset.UTC).toEpochMilli()
+
 fun gameTime(text: String): Long = try {
     LocalDateTime.parse(text).toInstant(ZoneOffset.UTC).toEpochMilli()
 } catch (_: Exception) { throw IllegalArgumentException("初始时间须为完整日期时间，例如 2048-06-12T17:30:00") }
@@ -144,37 +149,33 @@ fun validateSchedules(schedules: List<LifeSchedule>, map: WorldMap) {
 @Serializable data class LifeUniverse(
     val version: Int = 2, val active: String? = null, val wallAnchor: Long = 0,
     val elapsedAnchor: Long = 0, val boot: Int = -1, val worlds: Map<String, LifeWorld> = emptyMap(),
-    val clockWarning: String = "",
     val timeZone: String = "",
 )
 
 object LifeRules {
     fun accrue(u: LifeUniverse, wall: Long, elapsed: Long, boot: Int,
                zone: ZoneId = ZoneId.systemDefault()): LifeUniverse {
-        require(u.version in 1..2) { "世界存档版本不支持，原存档已保留" }
+        require(u.version == 2) { "世界存档版本不支持" }
         val now = realWorldTime(wall, zone)
-        val migrating = u.version == 1
         val zoneChanged = u.timeZone.isNotBlank() && u.timeZone != zone.id
         val backwards = u.wallAnchor != 0L && wall < u.wallAnchor
-        val warning = when {
-            migrating -> "已改用现实时间，旧加速目标已取消；原存档已备份，已有聊天保留，日期日程已接续。"
-            zoneChanged || backwards -> "手机时间或时区已改变，当前状态已校准；已有聊天保留，不重放已处理事件。"
-            else -> u.clockWarning
-        }
+        val previousZone = u.timeZone.takeIf(String::isNotBlank)?.let(ZoneId::of) ?: zone
+        val days = if (u.wallAnchor == 0L) 0 else ChronoUnit.DAYS.between(
+            gameDate(realWorldTime(u.wallAnchor,previousZone)).toLocalDate(),gameDate(now).toLocalDate())
         return u.copy(version=2, wallAnchor=wall, elapsedAnchor=elapsed, boot=boot, timeZone=zone.id,
-            clockWarning=warning, worlds=u.worlds.mapValues { (_, w) ->
-                if (migrating || zoneChanged || backwards || now < w.now)
-                    align(w, now, shiftDates=migrating)
-                else w.copy(target=now)
+            worlds=u.worlds.mapValues { (_, w) ->
+                val target=syncClockTime(w.target+days*1440*GAME_MINUTE,wall,zone)
+                if (u.wallAnchor == 0L || zoneChanged || backwards || target < w.now)
+                    align(w, target)
+                else w.copy(target=target)
             })
     }
 
-    private fun align(w: LifeWorld, now: Long, shiftDates: Boolean): LifeWorld {
+    private fun align(w: LifeWorld, now: Long): LifeWorld {
         val actors = w.actors.mapValues { (_, a) -> a.copy(
             nextContact=now+(a.nextContact-w.now).coerceAtLeast(0), activeSchedule="",
             pendingAt=if (a.pendingInput>a.answeredInput) now else null,
-            travel=a.travel?.let { it.copy(arrives=now+(it.arrives-w.now).coerceAtLeast(0)) },
-            schedule=if (!shiftDates) a.schedule else alignScheduleDates(a.schedule,w.now,now)) }
+            travel=a.travel?.let { it.copy(arrives=now+(it.arrives-w.now).coerceAtLeast(0)) }) }
         val aligned=advance(w.copy(now=now, target=now, actors=actors), now)
         return aligned.copy(actors=aligned.actors.mapValues { (_, a) -> a.copy(
             background=a.travel?.let { "正在从${w.map.name(it.from)}前往${w.map.name(it.to)}。" }

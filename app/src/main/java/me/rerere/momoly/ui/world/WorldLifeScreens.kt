@@ -5,10 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import me.rerere.momoly.R
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,14 +45,8 @@ import me.rerere.momoly.ui.theme.weChatColors
 
 @Composable internal fun WorldLifeControls(runtime: WorldLifeRuntime, world: LifeWorld?) {
     val status by runtime.status.collectAsState()
-    val universe by runtime.worlds.collectAsState()
     val colors=weChatColors()
     Column(Modifier.fillMaxWidth().padding(horizontal=12.dp)) {
-        if(universe.clockWarning.isNotBlank()) Text(universe.clockWarning,fontSize=12.sp,color=colors.secondaryText)
-        Row(verticalAlignment=Alignment.CenterVertically) {
-            Text(stringResource(if (world != null) R.string.world_clock_synced else R.string.world_not_created),
-                Modifier.weight(1f),fontSize=12.sp,color=colors.secondaryText)
-        }
         status.error?.let { error ->
             Text(error,color=MaterialTheme.colorScheme.error,fontSize=12.sp)
             Row {

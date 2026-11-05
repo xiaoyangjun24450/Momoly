@@ -308,7 +308,8 @@ internal fun HomePage(
                     LazyColumn(Modifier.fillMaxSize().testTag("home_contacts_list")) {
                         items(visibleContacts, key = { it.fileName }) { contact ->
                             ContactRow(contact, onClick = { onOpenCharacter(contact) },
-                                onLongClick = { onLongPressContact(contact) }, unread=unread[contact.fileName] ?: 0)
+                                onLongClick = { onLongPressContact(contact) }, unread=unread[contact.fileName] ?: 0,
+                                userName=profile?.name.orEmpty())
                         }
                     }
                 }
@@ -344,7 +345,7 @@ internal fun HomePage(
 }
 
 @Composable
-private fun ContactRow(contact: DrawerCharacter, onClick: () -> Unit, onLongClick: () -> Unit, unread: Int = 0) {
+private fun ContactRow(contact: DrawerCharacter, onClick: () -> Unit, onLongClick: () -> Unit, unread: Int = 0, userName: String = "") {
     val colors = weChatColors()
     val yesterday = stringResource(R.string.time_yesterday)
     val time = remember(contact.updatedAt, yesterday) {
@@ -361,7 +362,8 @@ private fun ContactRow(contact: DrawerCharacter, onClick: () -> Unit, onLongClic
                         fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(time, color = colors.timeText, fontSize = 11.sp)
                 }
-                Text(contact.lastMessage.ifBlank { stringResource(R.string.no_messages_yet) },
+                Text(me.rerere.momoly.domain.RegexEngine.applyForDisplay(contact.lastMessage, emptyList(),
+                    userName=userName, charName=contact.displayName).ifBlank { stringResource(R.string.no_messages_yet) },
                     color = colors.secondaryText, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

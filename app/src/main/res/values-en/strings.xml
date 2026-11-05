@@ -925,6 +925,4 @@
     <string name="world_map_close">Close</string>
     <string name="world_map_travelling">%1$s (travelling)</string>
     <string name="world_map_route">%1$s to %2$s, show travel time</string>
-    <string name="world_clock_synced">Synced with real time</string>
-    <string name="world_not_created">No world yet</string>
 </resources>

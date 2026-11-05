@@ -30,33 +30,32 @@ class WorldLifeTest {
         val backwards=LifeRules.accrue(once,start-GAME_MINUTE,10,6,zone)
         assertEquals(start-GAME_MINUTE,backwards.worlds.getValue("A").now)
         assertEquals(backwards.worlds.getValue("A").now,backwards.worlds.getValue("A").target)
-        assertTrue(backwards.clockWarning.isNotEmpty())
     }
     @Test fun phoneZoneAndZoneChangesUseLocalCalendarWithoutReplayingHistory() {
         val wall=java.time.Instant.parse("2026-11-06T12:00:00Z").toEpochMilli()
         assertEquals("2026-11-06 20:00",gameLabel(realWorldTime(wall,java.time.ZoneId.of("Asia/Shanghai"))))
         val u=LifeUniverse(timeZone="Asia/Shanghai",worlds=mapOf("A" to world()))
         val changed=LifeRules.accrue(u,wall,0,0,java.time.ZoneId.of("America/New_York"))
-        assertEquals("2026-11-06 07:00",gameLabel(changed.worlds.getValue("A").now))
+        assertEquals("2048-06-12 07:00",gameLabel(changed.worlds.getValue("A").now))
         assertEquals(changed.worlds.getValue("A").now,changed.worlds.getValue("A").target)
     }
-    @Test fun legacySaveCancelsFutureTimeAndPreservesHistoryAndRemainingTimers() {
-        val at=gameTime("2026-11-06T20:00:00")
-        val a=actor.copy(sessionId="s",pendingInput=1,travel=LifeTravel("home","work",start+15*GAME_MINUTE),
-            schedule=listOf(LifeSchedule("tomorrow",600,660,"约定","home",date="2048-06-13")))
-        val old=world().copy(target=start+1440*GAME_MINUTE,actors=mapOf("a" to a),messageTimes=mapOf("s:1" to start))
-        val migrated=LifeRules.accrue(LifeUniverse(version=1,worlds=mapOf("A" to old)),at,0,0,java.time.ZoneOffset.UTC)
-        val w=migrated.worlds.getValue("A")
-        assertEquals(2,migrated.version)
-        assertEquals(at,w.now);assertEquals(at,w.target)
-        assertEquals(old.messageTimes,w.messageTimes)
-        assertTrue(LifeRules.inputIsDue(w,w.actors.getValue("a")))
-        assertFalse(LifeRules.inputIsDue(w,w.actors.getValue("a").copy(pendingAt=at+GAME_MINUTE)))
-        assertEquals(at+60*GAME_MINUTE,w.actors.getValue("a").nextContact)
-        assertEquals(at+15*GAME_MINUTE,w.actors.getValue("a").travel!!.arrives)
-        assertEquals("2026-11-07",w.actors.getValue("a").schedule.single().date)
-        assertEquals(a.affinity,w.actors.getValue("a").affinity)
-        assertEquals(migrated,LifeRules.accrue(migrated,at,0,0,java.time.ZoneOffset.UTC))
+    @Test fun independentWorldDatesCrossMidnightAndOfflineDaysOnlyOnce() {
+        val zone=java.time.ZoneId.of("Asia/Shanghai")
+        val wall=java.time.Instant.parse("2026-11-06T15:59:00Z").toEpochMilli()
+        val second=gameTime("2099-12-31T12:00:00")
+        var u=LifeRules.accrue(LifeUniverse(worlds=mapOf("A" to world(),
+            "B" to world("B").copy(now=second,target=second,actors=emptyMap()))),wall,0,1,zone)
+        assertEquals("2048-06-12 23:59",gameLabel(u.worlds.getValue("A").now))
+        assertEquals("2099-12-31 23:59",gameLabel(u.worlds.getValue("B").now))
+        assertEquals(60*GAME_MINUTE,u.worlds.getValue("A").actors.getValue("a").nextContact-u.worlds.getValue("A").now)
+        u=LifeRules.accrue(u,wall+2*GAME_MINUTE,1,1,zone)
+        assertEquals("2048-06-13 00:01",gameLabel(u.worlds.getValue("A").target))
+        assertEquals("2100-01-01 00:01",gameLabel(u.worlds.getValue("B").target))
+        val later=wall+2*GAME_MINUTE+3*1440*GAME_MINUTE
+        u=LifeRules.accrue(u,later,2,2,zone)
+        assertEquals("2048-06-16 00:01",gameLabel(u.worlds.getValue("A").target))
+        assertEquals("2100-01-04 00:01",gameLabel(u.worlds.getValue("B").target))
+        assertEquals(u,LifeRules.accrue(u,later,2,2,zone))
     }
     @Test fun fiveMinuteBoundaryAndMidnightLabelsUseGameTime() {
         assertNotNull(gameMessageLabel(null,start))

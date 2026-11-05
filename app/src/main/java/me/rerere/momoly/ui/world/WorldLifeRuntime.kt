@@ -270,8 +270,7 @@ internal class WorldLifeRuntime(
         val session=session(w,a,card)
         val (provider,model)=model(a.file)
         val isReply=a.pendingInput>a.answeredInput && LifeRules.inputIsDue(w,a)
-        // Only committed messages exist here. Legacy calendar labels can be ahead of today's
-        // real date; they must not erase already-lived conversations from the model's context.
+        // Committed messages remain history when the phone's clock or time zone changes.
         val history=session.messages.filterNot { it.isHidden }
         val datedHistory=history.map { message ->
             val at=w.messageTimes["${session.id}:${message.ts}"]
@@ -295,7 +294,7 @@ internal class WorldLifeRuntime(
         val regex=RegexSetRepository.loadAll(context).filter { it.global }.flatMap { it.scripts.map { script -> script.toCharRegex() } } +
             preset?.regexScripts.orEmpty().map { it.toCharRegex() } + loaded.regexSetScripts
         val assembled=assembler.assemble(ChatPromptAssembler.Request(
-            session=session.copy(messages=history),card=card.copy(scenario=LifeRules.situation(w,a)),
+            session=session.copy(messages=history),card=card,
             userName=WorldUserProfileStore.load(context,w.name).name,worldBooks=books,preset=preset,
             promptRegex=regex,buildHistory=datedHistory,promptHistory=datedHistory,trimSummarizedHistory=true,
             updateTimed=false,reasoning=ReasoningLevel.AUTO,modelId=model,
@@ -412,8 +411,7 @@ internal class WorldLifeRuntime(
         日程：${a.schedule.joinToString { "${it.date} ${it.start/60}:${it.start%60}—${it.end/60}:${it.end%60} ${it.activity} ${w.map.name(it.location)} ${it.availability}" }}
         ${if(a.initial.schedule.isEmpty() && a.schedule.all { it.id=="autonomous" }) "尚未形成日常作息，请依据原角色设定在 dailySchedules 数组返回合理的每日时间段，格式同下方日程，date 留空。不要改变角色职业或编造私人经历。" else ""}
         ${if(isReply) "现在处理用户尚未得到答复的留言。" else "没有新的用户消息。根据当前活动、性格、关系、天气与聊天历史决定是否主动联系；不必每次都发，可 messages=[]。不要重复已说过的问候，不猜测未来发生的结果。"}
-        当前日期和钟点按用户手机现实时间同步，角色原设定年代只作背景；日程、今天/明天和问候均以此处当前时间为准。
-        早期聊天记录可能沿用旧世界日期，不据此编造时间倒流或穿越；当前约定以此处运行日期为准。
+        年月日使用此处世界日期，时分与用户手机现实钟点一致；日程、今天/明天和问候均以此处世界日期和钟点为准，不将世界年份改成现实年份。
         私有未发送草稿（不是事实，不算说过，可以重写）：${a.draft.take(3000)}
         当前可变事实：${w.facts.filter { it.mutable && it.scope==a.file }.joinToString { "${it.id}: ${it.content}" }}
         只返回一个 JSON 对象，不要 Markdown。messages 是纯聊天正文数组；其余字段可省略。
