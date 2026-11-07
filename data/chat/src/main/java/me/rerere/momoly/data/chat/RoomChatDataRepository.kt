@@ -30,6 +30,8 @@ class RoomChatDataRepository(
     override suspend fun save(session: ChatSession) = ChatRepository.save(appContext, session)
     override suspend fun delete(id: String) = ChatRepository.delete(appContext, id)
     override suspend fun messageCount(sessionId: String) = ChatRepository.messageCount(appContext, sessionId)
+    override suspend fun messagePosition(sessionId: String, timestamp: Long) =
+        ChatRepository.messagePosition(appContext, sessionId, timestamp)
     override suspend fun getMessage(sessionId: String, timestamp: Long) =
         ChatRepository.getMessage(appContext, sessionId, timestamp)
     override suspend fun putMessage(sessionId: String, message: ChatMessage) =

@@ -296,9 +296,13 @@ class ChatViewModel(
      * 天然停在底部；后续任何 DB 写入由 Room 使数据源失效自动重刷。未落盘的新会话（仅开场白）
      * 分页为空，UI 回退到 [session] 内存消息显示开场白。
      */
+    private var pagingTarget by mutableStateOf<ChatPagingTarget?>(null)
+    private var pagingRequestId = 0L
     val pagedMessages: Flow<PagingData<ChatMessage>> = chatPagingSource(
         repository = chatRepository,
         sessionIds = snapshotFlow { session?.id },
+        targets = snapshotFlow { pagingTarget },
+        onTargetMissing = { effectChannel.send(ChatEffect.SearchTargetUnavailable(it.sessionId, it.timestamp)) },
     ).cachedIn(viewModelScope)
 
     init {
@@ -396,7 +400,7 @@ class ChatViewModel(
                 action.scrollToBottom,
             )
             ChatAction.NewChat -> newChat()
-            is ChatAction.OpenSession -> openSession(action.id)
+            is ChatAction.OpenSession -> openSession(action.id, action.timestamp)
             is ChatAction.DeleteSession -> deleteSession(action.id)
             is ChatAction.RenameSession -> sessionActions.rename(action.id, action.title)
             is ChatAction.SetSessionPinned -> sessionActions.setPinned(action.id, action.pinned)
@@ -525,14 +529,16 @@ class ChatViewModel(
 
     // ── 会话管理 ──
 
-    private fun openSession(id: String) {
+    private fun openSession(id: String, timestamp: Long? = null) {
         if (generating) generationOrchestrator.stop()
+        pagingTarget = timestamp?.let { ChatPagingTarget(id, it, ++pagingRequestId) }
         sessionActions.open(id)
     }
 
     /** 顶栏"新聊天"：当前已是无用户消息的新聊天则不重复创建 */
     private fun newChat() {
         if (generating) generationOrchestrator.stop()
+        pagingTarget = null
         sessionActions.createNew()
     }
 
@@ -540,6 +546,7 @@ class ChatViewModel(
      *  偏好"切换角色时新建对话"开启时每次都新建，不再回到该角色的旧会话。 */
     private fun openCharacter(fileName: String, displayName: String) {
         if (generating) generationOrchestrator.stop()
+        pagingTarget = null
         sessionActions.openCharacter(fileName, displayName)
     }
 

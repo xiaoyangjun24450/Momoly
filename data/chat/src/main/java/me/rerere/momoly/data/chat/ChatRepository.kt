@@ -157,6 +157,9 @@ object ChatRepository {
     suspend fun messageCount(context: Context, sessionId: String): Int =
         dao(context).countMessages(sessionId)
 
+    suspend fun messagePosition(context: Context, sessionId: String, timestamp: Long): Int? =
+        dao(context).messagePosition(sessionId, timestamp)
+
     /** 取单条消息（不存在返回 null） */
     suspend fun getMessage(context: Context, sessionId: String, ts: Long): ChatMessage? =
         dao(context).getMessage(sessionId, ts)?.toModel()

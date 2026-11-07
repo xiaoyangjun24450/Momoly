@@ -44,6 +44,22 @@ class ChatScrollInteractionTest {
     private val generating = mutableStateOf(false)
 
     @Test
+    fun searchJumpCancelsBottomPinAndKeepsContextWhenNewContentArrives() {
+        keyboardHeight.intValue = 160
+        showList()
+        compose.runOnIdle {
+            controller.onSessionOpened()
+            controller.jumpToMessage(10)
+            keyboardHeight.intValue = 0
+            generating.value = true
+        }
+        assertEquals(10 to 0, position())
+        compose.runOnIdle { lastHeight.intValue = 480 }
+        assertEquals(10 to 0, position())
+        compose.runOnIdle { assertFalse(controller.autoFollow) }
+    }
+
+    @Test
     fun keyboardOpeningAndClosingKeepTheBottomAnchored() {
         showList()
         compose.runOnIdle { controller.scrollToBottom() }
@@ -158,7 +174,7 @@ class ChatScrollInteractionTest {
             val keyboardHeightPx = with(LocalDensity.current) { keyboardHeight.intValue.dp.roundToPx() }
             ImeLazyListAutoScroller(
                 lazyListState = controller.listState,
-                shouldFollow = controller::isAtBottom,
+                shouldFollow = { controller.autoFollow && controller.isAtBottom() },
                 onFollow = controller::snapToBottom,
                 imeInsets = WindowInsets(bottom = keyboardHeightPx),
             )

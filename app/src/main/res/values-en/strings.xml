@@ -917,7 +917,9 @@
     <string name="world_profile_saving">Saving…</string>
     <string name="world_profile_recovery">Could not read this profile. Defaults are shown. Go back to retry, or fill in a new profile and save.</string>
     <string name="world_map_empty">Add a character with a map to see locations here.</string>
-    <string name="world_map_updating">Locations and weather updated through %1$s. Catching up…</string>
+    <string name="world_refreshing">Refreshing</string>
+    <string name="character_card_incomplete">Character card information is incomplete</string>
+    <string name="search_message_unavailable">This message no longer exists or is hidden</string>
     <string name="world_map_weather">%1$s · %2$s</string>
     <string name="world_map_you">You</string>
     <string name="world_map_hint">Tap a route to see travel time</string>

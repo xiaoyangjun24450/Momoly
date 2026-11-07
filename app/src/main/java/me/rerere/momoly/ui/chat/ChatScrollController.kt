@@ -261,6 +261,18 @@ internal class ChatScrollController(
         pinToBottom()
     }
 
+    /** 搜索定位期间停止钉底，保留目标之后继续到达的新消息。 */
+    fun prepareMessageJump() {
+        cancelProgrammaticScroll()
+        autoFollow = false
+    }
+
+    fun jumpToMessage(index: Int) {
+        prepareMessageJump()
+        navAnchorIndex = index
+        listState.requestScrollToItem(index)
+    }
+
     // ── 事件 ────────────────────────────────────────────────────────────────
 
     /** 发送、重试、删除末条：回到底部并重置。 */

@@ -7,9 +7,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.rerere.momoly.R
 import me.rerere.momoly.data.world.*
 import me.rerere.momoly.ui.theme.weChatColors
 
@@ -19,14 +21,14 @@ import me.rerere.momoly.ui.theme.weChatColors
     AlertDialog(onDismissRequest=onClose,
         title={Text(if(appraisal) "鉴定 · ${actor?.name ?: file}" else actor?.name ?: file)},
         text={Column(Modifier.verticalScroll(rememberScrollState()).testTag("character_life_profile"),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            if(actor==null) Text("这个角色没有阶段二初始信息，请导入改造后的角色卡。")
+            if(actor==null) Text(stringResource(R.string.character_card_incomplete))
             else if(!appraisal) {
                 Text("前尘往事",fontWeight=FontWeight.SemiBold)
                 Text(actor.initial.history)
                 OutlinedButton(onClick={appraisal=true},modifier=Modifier.testTag("open_appraisal")) { Text("鉴定") }
             } else {
                 Text("此时此刻",fontWeight=FontWeight.SemiBold)
-                if(world.target-world.now>GAME_MINUTE) Text("正在补齐至 ${gameLabel(world.target)}；以下为已处理时刻的状态。")
+                if(world.target-world.now>GAME_MINUTE) Text(stringResource(R.string.world_refreshing))
                 Text(LifeRules.situation(world,actor))
                 Text("心情：${actor.mood} · ${actor.moodIntensity}/100")
                 Text("好感度：${actor.affinity}/100")
@@ -54,9 +56,8 @@ import me.rerere.momoly.ui.theme.weChatColors
                 if(status.working) TextButton(onClick=runtime::stop){Text("暂停")}
             }
         }
-        if(world!=null && world.target-world.now>5*GAME_MINUTE) {
-            Text("正在补齐至 ${gameLabel(world.target)}，已到 ${gameLabel(world.now)}",fontSize=12.sp,color=colors.secondaryText)
-            if(!status.paused) TextButton(onClick=runtime::stop){Text("稍后继续")}
+        if(!status.paused && world!=null && world.target-world.now>GAME_MINUTE) {
+            Text(stringResource(R.string.world_refreshing),fontSize=12.sp,color=colors.secondaryText)
         }
     }
 }

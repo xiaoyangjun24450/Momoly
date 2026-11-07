@@ -225,7 +225,7 @@ class WorldLifeRuntimeTest {
         var appended=false
         assertTrue(r.submit("pending",card,config.load().providers.first(),"test") { appended=true;true })
         assertFalse(appended)
-        assertTrue(r.status.value.error.orEmpty().contains("输入内容已保留"))
+        assertNull(r.status.value.error)
     }
     @Test fun twoCharactersCrossMidnightWithoutMixingSessionsOrPrivateFacts()=runBlocking {
         val original=File(CharacterRepository.charsDir(context),CharacterRepository.listNames(context).single()+".json")

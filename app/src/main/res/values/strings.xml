@@ -915,7 +915,9 @@
     <string name="world_profile_saving">正在保存…</string>
     <string name="world_profile_recovery">资料读取失败，暂显示默认值。可返回重试，或重新填写后保存。</string>
     <string name="world_map_empty">添加带地图的角色后，这里会显示世界位置。</string>
-    <string name="world_map_updating">位置和天气更新至 %1$s，正在补齐…</string>
+    <string name="world_refreshing">正在刷新</string>
+    <string name="character_card_incomplete">角色卡资料不完整</string>
+    <string name="search_message_unavailable">这条聊天记录已不存在或已隐藏</string>
     <string name="world_map_weather">%1$s · %2$s</string>
     <string name="world_map_you">你</string>
     <string name="world_map_hint">点击连线，查看路线耗时</string>

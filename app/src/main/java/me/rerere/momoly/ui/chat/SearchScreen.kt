@@ -54,7 +54,7 @@ import java.util.Date
 fun SearchScreen(
     charFile: String = "",
     onBack: () -> Unit,
-    onOpenSession: (String) -> Unit = {},
+    onOpenSession: (String, Long) -> Unit = { _, _ -> },
 ) {
     val controller = LocalAppContainer.current.features.chatSearch
     var query by remember { mutableStateOf("") }
@@ -177,7 +177,7 @@ fun SearchScreen(
                             Modifier.fillMaxWidth()
                                 .clickable {
                                     controller.record(query)
-                                    onOpenSession(hit.sessionId)
+                                    onOpenSession(hit.sessionId, hit.timestamp)
                                 }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,

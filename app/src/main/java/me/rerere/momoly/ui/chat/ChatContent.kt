@@ -52,6 +52,7 @@ import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import me.rerere.momoly.R
@@ -147,10 +148,17 @@ internal fun ChatContent(
     ChatFrontendEvents(frontendEvents)
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    var pendingSearchMessage by remember { mutableStateOf<Pair<String, Long>?>(null) }
     // One-shot UI work is emitted by the ViewModel and consumed only at this route boundary.
     LaunchedEffect(effects) {
         effects.collect { effect ->
             when (effect) {
+                is ChatEffect.SearchTargetUnavailable -> {
+                    if (pendingSearchMessage == (effect.sessionId to effect.timestamp)) {
+                        pendingSearchMessage = null
+                        Toast.makeText(ctx, R.string.search_message_unavailable, Toast.LENGTH_SHORT).show()
+                    }
+                }
                 is ChatEffect.ShowMessage -> Toast.makeText(
                     ctx,
                     effect.text,
@@ -163,6 +171,7 @@ internal fun ChatContent(
         }
     }
     fun goHome() {
+        pendingSearchMessage = null
         keyboardController?.hide()
         nav.clear()
         nav.add(Screen.Home)
@@ -235,8 +244,13 @@ internal fun ChatContent(
             onThemeModeChange = onThemeModeChange,
             onBack = ::navBack,
             onNavigate = nav::add,
-            onOpenSearchSession = { id ->
-                onAction(ChatAction.OpenSession(id))
+            onOpenSearchSession = { id, timestamp ->
+                pendingSearchMessage = id to timestamp
+                scrollCtrl.prepareMessageJump()
+                lastPinnedSessionId = id
+                firstPagePinnedSessionId = id
+                keyboardController?.hide()
+                onAction(ChatAction.OpenSession(id, timestamp))
                 nav.clear()
             },
         )
@@ -435,7 +449,7 @@ internal fun ChatContent(
                 // 打开/切换会话：回到底部并重置。用 lastPinnedSessionId 跳过"从全屏页面返回后重入"的情况。
                 LaunchedEffect(conversation.current?.id) {
                     val sessionId = conversation.current?.id
-                    if (sessionId != null && sessionId != lastPinnedSessionId) {
+                    if (pendingSearchMessage == null && sessionId != null && sessionId != lastPinnedSessionId) {
                         lastPinnedSessionId = sessionId
                         scrollCtrl.onSessionOpened()
                     }
@@ -444,10 +458,21 @@ internal fun ChatContent(
                 // pending bottom anchor as soon as items arrive, before normal user scrolling begins.
                 LaunchedEffect(conversation.current?.id, lazyMessages.itemCount) {
                     val sessionId = conversation.current?.id
-                    if (sessionId != null && lazyMessages.itemCount > 0 &&
+                    if (pendingSearchMessage == null && sessionId != null && lazyMessages.itemCount > 0 &&
                         firstPagePinnedSessionId != sessionId) {
                         firstPagePinnedSessionId = sessionId
                         scrollCtrl.pinToBottom()
+                    }
+                }
+                LaunchedEffect(conversation.current?.id, pendingSearchMessage, msgs) {
+                    val target = pendingSearchMessage ?: return@LaunchedEffect
+                    if (conversation.current?.id != target.first) return@LaunchedEffect
+                    val index = msgs.indexOfFirst { it.ts == target.second }
+                    if (index >= 0) {
+                        scrollCtrl.jumpToMessage(index)
+                        snapshotFlow { scrollCtrl.listState.layoutInfo.visibleItemsInfo.any { it.key == target.second } }
+                            .first { it }
+                        pendingSearchMessage = null
                     }
                 }
                 // 生成结束：仍在跟随且生成目标是末条消息则钉住底部（正文切 Markdown、工具栏出现会改高度）。
@@ -464,7 +489,7 @@ internal fun ChatContent(
                 // 跟随动作走状态机的统一入口，与流式跟随共用同一套手势让位判断。
                 ImeLazyListAutoScroller(
                     lazyListState = scrollCtrl.listState,
-                    shouldFollow = scrollCtrl::isAtBottom,
+                    shouldFollow = { pendingSearchMessage == null && scrollCtrl.autoFollow && scrollCtrl.isAtBottom() },
                     onFollow = scrollCtrl::snapToBottom,
                 )
 

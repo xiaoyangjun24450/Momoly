@@ -79,6 +79,24 @@ class ChatDaoTest {
     }
 
     @Test
+    fun searchPositionUsesVisibleRowsAndRejectsMissingTargets() = runBlocking {
+        dao.insertSession(session("s1"))
+        dao.insertSession(session("s2"))
+        for (ts in 1L..180L) dao.upsertMessage(message("s1", ts, "assistant", "message-$ts"))
+        dao.upsertMessage(message("s1", 20, "assistant", "hidden").copy(isHidden = true))
+        dao.upsertMessage(message("s2", 60, "assistant", "other session"))
+        assertEquals(58, dao.messagePosition("s1", 60))
+        assertEquals(0, dao.messagePosition("s2", 60))
+        assertNull(dao.messagePosition("s1", 20))
+        assertNull(dao.messagePosition("s1", 999))
+        val page = dao.messagesPaged("s1").load(PagingSource.LoadParams.Refresh(
+            key = 28, loadSize = 60, placeholdersEnabled = false,
+        )) as PagingSource.LoadResult.Page
+        assertTrue(page.data.any { it.ts == 60L })
+        assertTrue(page.data.first().ts < 60 && page.data.last().ts > 60)
+    }
+
+    @Test
     fun concurrentMessageWritesRemainDistinct() = runBlocking {
         dao.insertSession(session("s1"))
         val executor = Executors.newFixedThreadPool(4)

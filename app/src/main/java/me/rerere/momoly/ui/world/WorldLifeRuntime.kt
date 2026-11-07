@@ -165,9 +165,7 @@ internal class WorldLifeRuntime(
         if (card?.life == null) return false
         val current=WorldLifeStore.tick(context,wallClock()).worlds[card.worldName]
         if(current!=null && current.target-current.now>5*GAME_MINUTE) {
-            // Do not insert a present-day input ahead of still-unpublished historical messages.
-            // appendInput owns clearing the editor, so the unsent text remains available.
-            mutableStatus.value=mutableStatus.value.copy(error="请先完成世界时间补齐，再发送这条消息；输入内容已保留。")
+            // 补齐历史留言前不插入新消息，也不清空草稿；页面内刷新状态已说明等待原因。
             wake.trySend(Unit);start()
             return true
         }
@@ -313,7 +311,7 @@ internal class WorldLifeRuntime(
         val turn=try { lifeJson.decodeFromString<LifeTurn>(raw) } catch (_: Exception) {
             // Some roleplay presets insist on prose-only output. Keep their voice and obtain effects
             // in a separate neutral request, without injecting those contradictory preset rules.
-            require(raw.isNotBlank() && !raw.startsWith('{') && !raw.startsWith('[')) { "角色事件 JSON 不完整，尚未发布；可重试。" }
+            require(raw.isNotBlank() && !raw.startsWith('{') && !raw.startsWith('[')) { context.getString(me.rerere.momoly.R.string.character_card_incomplete) }
             assessPlainReply(provider,model,w,a,card,inputText,raw,revision).copy(messages=listOf(raw))
         }
         require(turn.messages.size<=20 && turn.messages.all { it.length<=4000 }) { "角色单次留言过长，未发布；请重试。" }

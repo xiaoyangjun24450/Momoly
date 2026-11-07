@@ -21,7 +21,7 @@ internal fun ChatDestinationHost(
     onThemeModeChange: (ThemeMode) -> Unit,
     onBack: () -> Unit,
     onNavigate: (ChatDestination) -> Unit,
-    onOpenSearchSession: (String) -> Unit,
+    onOpenSearchSession: (String, Long) -> Unit,
 ) {
     when (destination) {
         ChatDestination.Home -> error("Home is rendered by the root host")

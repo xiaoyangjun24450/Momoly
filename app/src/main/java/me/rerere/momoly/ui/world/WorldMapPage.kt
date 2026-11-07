@@ -46,7 +46,7 @@ internal fun WorldMapPage(world: LifeWorld?, userName: String = "") {
                             Modifier.weight(1f), fontSize = 12.sp, color = colors.incomingText.copy(alpha = .62f))
                     }
                     if (world.target - world.now > GAME_MINUTE) {
-                        Text(stringResource(R.string.world_map_updating, gameLabel(world.now)),
+                        Text(stringResource(R.string.world_refreshing),
                             fontSize = 12.sp, color = colors.incomingText.copy(alpha = .62f))
                     }
                 }

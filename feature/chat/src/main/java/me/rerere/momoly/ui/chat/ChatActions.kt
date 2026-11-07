@@ -17,7 +17,7 @@ sealed interface ChatAction {
         val scrollToBottom: Boolean,
     ) : ChatAction
     data object NewChat : ChatAction
-    data class OpenSession(val id: String) : ChatAction
+    data class OpenSession(val id: String, val timestamp: Long? = null) : ChatAction
     data class DeleteSession(val id: String) : ChatAction
     data class RenameSession(val id: String, val title: String) : ChatAction
     data class SetSessionPinned(val id: String, val pinned: Boolean) : ChatAction
@@ -61,6 +61,7 @@ sealed interface ChatAction {
 }
 
 sealed interface ChatEffect {
+    data class SearchTargetUnavailable(val sessionId: String, val timestamp: Long) : ChatEffect
     data class ShowMessage(val text: String, val long: Boolean = false) : ChatEffect
     data object OpenModelSelector : ChatEffect
     data object ScrollToBottom : ChatEffect

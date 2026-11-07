@@ -238,6 +238,11 @@ internal interface ChatDao {
     @Query("SELECT COUNT(*) FROM messages WHERE sessionId = :sid AND isHidden = 0")
     suspend fun countMessages(sid: String): Int
 
+    @Query("""SELECT (SELECT COUNT(*) FROM messages earlier
+        WHERE earlier.sessionId = :sid AND earlier.isHidden = 0 AND earlier.ts < :ts)
+        FROM messages WHERE sessionId = :sid AND ts = :ts AND isHidden = 0""")
+    suspend fun messagePosition(sid: String, ts: Long): Int?
+
     /** 截断：删掉该会话内 ts 大于给定值的所有消息（用户消息后无 AI 回复时的重答兜底） */
     @Query("DELETE FROM messages WHERE sessionId = :sid AND ts > :ts")
     suspend fun deleteMessagesAfter(sid: String, ts: Long)
