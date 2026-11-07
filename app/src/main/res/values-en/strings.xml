@@ -920,7 +920,7 @@
     <string name="world_map_updating">Locations and weather updated through %1$s. Catching up…</string>
     <string name="world_map_weather">%1$s · %2$s</string>
     <string name="world_map_you">You</string>
-    <string name="world_map_hint">Tap a route for travel time · Swipe sideways to explore</string>
+    <string name="world_map_hint">Tap a route to see travel time</string>
     <string name="world_map_duration">Travel time: %1$d minutes</string>
     <string name="world_map_close">Close</string>
     <string name="world_map_travelling">%1$s (travelling)</string>
