@@ -40,7 +40,6 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Monitor
 import com.composables.icons.lucide.Moon
 import com.composables.icons.lucide.Package
-import com.composables.icons.lucide.ScrollText
 import com.composables.icons.lucide.Smile
 import com.composables.icons.lucide.Sun
 import com.composables.icons.lucide.Volume2
@@ -60,7 +59,6 @@ fun SettingsScreen(
     onNavigateToApiConfig: () -> Unit = {},
     onNavigateToFontSize: () -> Unit = {},
     onNavigateToTts: () -> Unit = {},
-    onNavigateToSummarize: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     embedded: Boolean = false,
 ) {
@@ -208,12 +206,6 @@ fun SettingsScreen(
                 { Icon(Lucide.Volume2, null, Modifier.size(24.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                 stringResource(R.string.tts), onClick = onNavigateToTts)
-        }
-        SettingsSection(stringResource(R.string.advanced)) {
-            SettingsRow(
-                { Icon(Lucide.ScrollText, null, Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                stringResource(R.string.ext_summarize), onClick = onNavigateToSummarize)
         }
         SettingsSection(stringResource(R.string.about)) {
             SettingsRow(

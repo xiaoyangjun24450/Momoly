@@ -28,8 +28,6 @@ import me.rerere.momoly.data.chat.ChatSession
 import me.rerere.momoly.domain.GenerationEngine
 import me.rerere.momoly.domain.GenerationActionGuard
 import me.rerere.momoly.domain.PromptBuilder
-import me.rerere.momoly.domain.ChatRegenerationPlan
-import me.rerere.momoly.domain.ChatRegenerationPlanner
 import me.rerere.momoly.domain.chat.ChatMessageCoordinator
 import me.rerere.momoly.domain.chat.CommitChatGenerationUseCase
 import me.rerere.momoly.domain.chat.ChatSessionCoordinator
@@ -266,11 +264,6 @@ class ChatViewModel(
             scope = viewModelScope,
             chatRepository = chatRepository,
             extensions = generationDependencies.extensionGateway,
-            titleGenerator = ChatTitleGenerator(
-                chatRepository = chatRepository,
-                extensions = generationDependencies.extensionGateway,
-                settings = generationDependencies.titleSettingsDataSource,
-            ),
         )
     }
     private val generationOrchestrator by lazy {
@@ -391,20 +384,11 @@ class ChatViewModel(
                 scrollToBottom = true,
                 hideKeyboard = true,
             )
-            is ChatAction.RegenerateAssistant -> handleOutcome(
-                regenerateAi(action.timestamp),
-                action.scrollToBottom,
-            )
-            is ChatAction.RegenerateAfterUser -> handleOutcome(
-                regenerateAfterUser(action.timestamp),
-                action.scrollToBottom,
-            )
             ChatAction.NewChat -> newChat()
             is ChatAction.OpenSession -> openSession(action.id, action.timestamp)
             is ChatAction.DeleteSession -> deleteSession(action.id)
             is ChatAction.RenameSession -> sessionActions.rename(action.id, action.title)
             is ChatAction.SetSessionPinned -> sessionActions.setPinned(action.id, action.pinned)
-            is ChatAction.RegenerateTitle -> generationOrchestrator.generateTitle(action.id)
             is ChatAction.OpenCharacter -> openCharacter(action.fileName, action.displayName)
             is ChatAction.SelectModel -> model.select(currentCard?.name, action.providerId, action.modelId)
             is ChatAction.UpdateReasoning -> model.updateReasoning(action.level)
@@ -616,31 +600,6 @@ class ChatViewModel(
         }
     }
 
-    /** AI 消息重答：保留旧版本，新回复作为新版本（可左右切换）；其后的消息保留，由所有版本共享 */
-    private fun regenerateAi(ts: Long): ChatSendOutcome {
-        if (generating || sessionActions.isSelecting) return ChatSendOutcome.SKIPPED
-        if (!promptContext.isLoadedFor(session?.charFile.orEmpty())) return ChatSendOutcome.SKIPPED
-        val sessionId = session?.id ?: return ChatSendOutcome.SKIPPED
-        return launchRegeneration(sessionId) { ChatRegenerationPlanner.forAssistant(it, ts) }
-    }
-
-    /** 用户消息重答：对其后的 AI 回复生成新版本 */
-    private fun regenerateAfterUser(ts: Long): ChatSendOutcome {
-        if (generating || sessionActions.isSelecting) return ChatSendOutcome.SKIPPED
-        if (!promptContext.isLoadedFor(session?.charFile.orEmpty())) return ChatSendOutcome.SKIPPED
-        val sessionId = session?.id ?: return ChatSendOutcome.SKIPPED
-        return launchRegeneration(sessionId) { ChatRegenerationPlanner.afterUser(it, ts) }
-    }
-
-    private fun launchRegeneration(
-        sessionId: String,
-        createPlan: (ChatSession) -> ChatRegenerationPlan?,
-    ): ChatSendOutcome {
-        val (prov, modelId) = currentProviderAndModel() ?: return ChatSendOutcome.NO_MODEL
-        val started = generationOrchestrator.launchRegeneration(sessionId, prov, modelId, createPlan)
-        return if (started) ChatSendOutcome.STARTED else ChatSendOutcome.SKIPPED
-    }
-
     private fun generationSnapshot(): ChatGenerationSnapshot = ChatGenerationSnapshot(
         card = currentCard,
         userName = sessionDependencies.userProfileDataSource.loadName(currentCard?.worldName.orEmpty()),
@@ -651,7 +610,6 @@ class ChatViewModel(
         imageGeneration = imageGeneration,
         searchEnabled = searchEnabled,
         apiConfig = apiConfig,
-        chatModel = displayModelSpec(),
     )
 
     // ── 消息操作（统一走 DB：按 ts 定位单条消息落盘，分页由 Room 自动刷新） ──

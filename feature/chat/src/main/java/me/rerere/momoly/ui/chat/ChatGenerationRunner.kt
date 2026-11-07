@@ -14,7 +14,6 @@ import me.rerere.momoly.data.chat.ChatSession
 import me.rerere.momoly.data.preset.StPreset
 import me.rerere.momoly.data.worldbook.WorldBook
 import me.rerere.momoly.domain.GenerationEngine
-import me.rerere.momoly.domain.ChatGenerationMode
 import me.rerere.momoly.domain.chat.CommitChatGenerationUseCase
 import me.rerere.momoly.domain.InterruptedReplyDraft
 
@@ -30,8 +29,6 @@ internal class ChatGenerationRunner(
         val sessionId: String,
         val provider: ApiProvider,
         val modelId: String,
-        val mode: ChatGenerationMode,
-        val targetTimestamp: Long?,
         val card: CharacterCard?,
         val userName: String,
         val worldBooks: List<WorldBook>,

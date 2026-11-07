@@ -117,13 +117,6 @@ internal fun ChatMessageOverlays(
                 deleteSessionId = null
             },
             onDismissDeleteSession = { deleteSessionId = null },
-            showRegenerate = pendingRegenerate != null,
-            onRegenerate = {
-                val action = pendingRegenerate
-                pendingRegenerate = null
-                action?.invoke()
-            },
-            onDismissRegenerate = { pendingRegenerate = null },
             showDeleteCurrentVersion = pendingDeleteCurrentVersion != null,
             onDeleteCurrentVersion = {
                 val action = pendingDeleteCurrentVersion

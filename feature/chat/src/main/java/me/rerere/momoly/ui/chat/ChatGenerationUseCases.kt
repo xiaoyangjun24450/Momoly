@@ -5,7 +5,6 @@ import me.rerere.momoly.data.api.GenParams
 import me.rerere.momoly.domain.chat.ChatDataRepository
 import me.rerere.momoly.data.chat.ChatMessage
 import me.rerere.momoly.data.chat.ChatSession
-import me.rerere.momoly.domain.ChatGenerationMode
 import me.rerere.momoly.domain.ChatGenerationPlanner
 
 internal data class PreparedChatGeneration(
@@ -26,15 +25,9 @@ internal class PrepareChatGenerationUseCase(
         val plan = ChatGenerationPlanner.create(
             base,
             request.modelId,
-            request.mode,
-            request.targetTimestamp,
-        ) ?: return null
-        val generationMessage = if (request.mode == ChatGenerationMode.REGENERATE) {
-            plan.message.copy(searches = emptyList())
-        } else {
-            plan.message
-        }.copy(imageAspectRatio = request.imageGeneration.aspectRatio)
-        val commitVariables = request.mode == ChatGenerationMode.SEND
+        )
+        val generationMessage = plan.message.copy(imageAspectRatio = request.imageGeneration.aspectRatio)
+        val commitVariables = true
         val assembled = promptAssembler.assemble(
             ChatPromptAssembler.Request(
                 session = base,
@@ -45,7 +38,7 @@ internal class PrepareChatGenerationUseCase(
                 promptRegex = request.promptRegex,
                 buildHistory = plan.buildHistory,
                 promptHistory = plan.promptHistory,
-                trimSummarizedHistory = commitVariables,
+                trimContributedHistory = commitVariables,
                 updateTimed = plan.updateTimedWorldInfo,
                 reasoning = request.reasoning,
                 modelId = request.modelId,

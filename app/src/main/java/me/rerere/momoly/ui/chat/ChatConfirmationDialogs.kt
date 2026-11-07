@@ -14,9 +14,6 @@ internal fun ChatConfirmationDialogs(
     deleteSessionEnabled: Boolean,
     onDeleteSession: () -> Unit,
     onDismissDeleteSession: () -> Unit,
-    showRegenerate: Boolean,
-    onRegenerate: () -> Unit,
-    onDismissRegenerate: () -> Unit,
     showDeleteCurrentVersion: Boolean,
     onDeleteCurrentVersion: () -> Unit,
     onDismissDeleteCurrentVersion: () -> Unit,
@@ -33,15 +30,6 @@ internal fun ChatConfirmationDialogs(
             confirmEnabled = deleteSessionEnabled,
             onConfirm = onDeleteSession,
             onDismiss = onDismissDeleteSession,
-        )
-    }
-    if (showRegenerate) {
-        ConfirmationDialog(
-            titleRes = R.string.confirm_regenerate_title,
-            messageRes = R.string.confirm_regenerate_msg,
-            confirmRes = R.string.confirm,
-            onConfirm = onRegenerate,
-            onDismiss = onDismissRegenerate,
         )
     }
     if (showDeleteCurrentVersion) {

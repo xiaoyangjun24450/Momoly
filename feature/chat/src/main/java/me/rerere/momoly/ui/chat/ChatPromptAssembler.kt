@@ -17,7 +17,6 @@ import me.rerere.momoly.domain.InterruptedReplyDraft
 import me.rerere.momoly.extension.PromptContext
 import me.rerere.momoly.extension.PromptContributor
 import me.rerere.momoly.extension.Extension
-import org.json.JSONObject
 
 interface ChatPromptEnvironment {
     fun enabledExtensions(): List<Extension>
@@ -44,7 +43,7 @@ class ChatPromptAssembler(
         val promptRegex: List<CharRegex>,
         val buildHistory: List<ChatMessage>,
         val promptHistory: List<ChatMessage>,
-        val trimSummarizedHistory: Boolean,
+        val trimContributedHistory: Boolean,
         val updateTimed: Boolean,
         val reasoning: ReasoningLevel,
         val modelId: String,
@@ -92,9 +91,9 @@ class ChatPromptAssembler(
             historySkip = maxOf(historySkip, contribution.skipMessagesUpTo)
         }
 
-        val buildHistory = request.buildHistory.trimHistory(historySkip, request.trimSummarizedHistory)
+        val buildHistory = request.buildHistory.trimHistory(historySkip, request.trimContributedHistory)
             .filterNot(ChatMessage::isHidden)
-        val promptHistory = request.promptHistory.trimHistory(historySkip, request.trimSummarizedHistory)
+        val promptHistory = request.promptHistory.trimHistory(historySkip, request.trimContributedHistory)
             .filterNot(ChatMessage::isHidden)
         val variableState = MacroVariableState(
             localVariables = request.session.localVariables,
@@ -118,9 +117,6 @@ class ChatPromptAssembler(
             sessionId = request.session.id,
             input = request.session.messages.lastOrNull { it.role == "user" }?.content.orEmpty(),
             model = request.modelId,
-            summary = runCatching {
-                JSONObject(request.session.extState["builtin.summarize"].orEmpty()).optString("summary")
-            }.getOrDefault(""),
             enabledExtensions = enabledExtensions.flatMap { listOf(it.info.id, it.info.name) }.toSet(),
             pickSalt = request.generationMessage.alts.size,
             variableState = variableState,

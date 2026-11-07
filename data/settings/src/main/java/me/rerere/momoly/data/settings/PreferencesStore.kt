@@ -31,7 +31,6 @@ object PreferencesStore {
     private const val K_AUTO_COLLAPSE_CODE = "autoCollapseCode"
     private const val K_CODE_COLLAPSE_LINES = "codeCollapseLines"
     private const val K_AUTO_COLLAPSE_THINKING = "autoCollapseThinking"
-    private const val K_CONFIRM_REGENERATE = "confirmRegenerate"
     private const val K_CONFIRM_DELETE_CURRENT_VERSION = "confirmDeleteCurrentVersion"
     private const val K_CONFIRM_DELETE_ALL_VERSIONS = "confirmDeleteAllVersions"
     private const val K_NAV_BUTTONS_MODE = "navButtonsMode"
@@ -74,7 +73,6 @@ object PreferencesStore {
             autoCollapseCode = p.getBoolean(K_AUTO_COLLAPSE_CODE, d.autoCollapseCode),
             codeCollapseLines = p.getInt(K_CODE_COLLAPSE_LINES, d.codeCollapseLines),
             autoCollapseThinking = p.getBoolean(K_AUTO_COLLAPSE_THINKING, d.autoCollapseThinking),
-            confirmRegenerate = p.getBoolean(K_CONFIRM_REGENERATE, d.confirmRegenerate),
             confirmDeleteCurrentVersion = p.getBoolean(K_CONFIRM_DELETE_CURRENT_VERSION, d.confirmDeleteCurrentVersion),
             confirmDeleteAllVersions = p.getBoolean(K_CONFIRM_DELETE_ALL_VERSIONS, d.confirmDeleteAllVersions),
             navButtonsMode = navMode(p.getString(K_NAV_BUTTONS_MODE, null)),
@@ -114,7 +112,6 @@ object PreferencesStore {
             .putBoolean(K_AUTO_COLLAPSE_CODE, s.autoCollapseCode)
             .putInt(K_CODE_COLLAPSE_LINES, s.codeCollapseLines.coerceIn(1, 999))
             .putBoolean(K_AUTO_COLLAPSE_THINKING, s.autoCollapseThinking)
-            .putBoolean(K_CONFIRM_REGENERATE, s.confirmRegenerate)
             .putBoolean(K_CONFIRM_DELETE_CURRENT_VERSION, s.confirmDeleteCurrentVersion)
             .putBoolean(K_CONFIRM_DELETE_ALL_VERSIONS, s.confirmDeleteAllVersions)
             .putString(K_NAV_BUTTONS_MODE, s.navButtonsMode.name)

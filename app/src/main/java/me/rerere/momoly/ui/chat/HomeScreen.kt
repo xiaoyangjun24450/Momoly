@@ -136,7 +136,6 @@ internal fun HomeRoute(
                 onNavigateToApiConfig = { onNavigate(ChatDestination.ApiConfig) },
                 onNavigateToFontSize = { onNavigate(ChatDestination.FontSize) },
                 onNavigateToTts = { onNavigate(ChatDestination.Tts) },
-                onNavigateToSummarize = { onNavigate(ChatDestination.Summarize) },
                 onNavigateToAbout = { onNavigate(ChatDestination.About) },
             )
         },

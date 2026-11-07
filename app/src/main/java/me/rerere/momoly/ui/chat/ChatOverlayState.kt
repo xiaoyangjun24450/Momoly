@@ -25,13 +25,8 @@ internal class ChatOverlayState {
     var menuTarget by mutableStateOf<MessageMenuTarget?>(null)
     var copyPanel by mutableStateOf<CopyPanel?>(null)
     var renameSession by mutableStateOf<Pair<String, String>?>(null)
-    var pendingRegenerate by mutableStateOf<(() -> Unit)?>(null)
     var pendingDeleteCurrentVersion by mutableStateOf<(() -> Unit)?>(null)
     var pendingDeleteAllVersions by mutableStateOf<(() -> Unit)?>(null)
-
-    fun confirmRegenerate(required: Boolean, action: () -> Unit) {
-        if (required) pendingRegenerate = action else action()
-    }
 
     fun confirmDeleteCurrentVersion(required: Boolean, action: () -> Unit) {
         if (required) pendingDeleteCurrentVersion = action else action()

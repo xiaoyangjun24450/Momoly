@@ -27,7 +27,6 @@ internal fun createChatFeatureDependencies(
             promptEnvironment = AndroidChatPromptEnvironment(appContext, container.extensionGateway),
             generationResources = AndroidChatGenerationResources(appContext),
             searchToolDataSource = AndroidChatSearchToolDataSource(appContext),
-            titleSettingsDataSource = AndroidChatTitleSettingsDataSource(appContext),
             worldDriver = container.worldLife,
         ),
         platform = ChatPlatformDependencies(

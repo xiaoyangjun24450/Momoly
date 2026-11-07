@@ -73,23 +73,4 @@ object ConversationOps {
     fun deleteAltOne(m: ChatMessage): ChatMessage? =
         MessageAlternatives.deleteCurrent(m)
 
-    /** 重答准备（单消息版）：在本消息上开一个空白新版本并切换过去，由生成器流式填充 */
-    fun startVariantOne(m: ChatMessage, modelId: String): ChatMessage {
-        val alts = m.alts.ifEmpty { listOf(MsgAlt()) }.toMutableList()
-        val ai = m.altIdx.coerceIn(0, alts.lastIndex)
-        alts[ai] = alts[ai].copy(content = m.content, reasoning = m.reasoning,
-            dataJson = m.dataJson,
-            model = m.model, reasoningMs = m.reasoningMs, searches = m.searches, images = m.images,
-            imageAspectRatio = m.imageAspectRatio,
-            requestSnapshots = m.requestSnapshots,
-            promptTokens = m.promptTokens, completionTokens = m.completionTokens,
-            cachedTokens = m.cachedTokens,
-            generationMs = m.generationMs)
-        alts += MsgAlt(model = modelId)
-        return m.copy(content = "", reasoning = "", model = modelId, reasoningMs = 0, images = emptyList(),
-            dataJson = "{}",
-            promptTokens = 0, completionTokens = 0, cachedTokens = 0, generationMs = 0,
-            requestSnapshots = emptyList(),
-            alts = alts, altIdx = alts.lastIndex)
-    }
 }

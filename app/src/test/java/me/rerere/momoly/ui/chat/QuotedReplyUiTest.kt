@@ -31,7 +31,7 @@ class QuotedReplyUiTest {
         }
         compose.onNodeWithText(context.getString(R.string.copy)).assertExists()
         compose.onNodeWithText(context.getString(R.string.select_copy)).assertExists()
-        compose.onNodeWithText(context.getString(R.string.regenerate)).assertDoesNotExist()
+        compose.onNodeWithText("重新生成").assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.edit)).assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.delete_current_version)).assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.reply_message)).performClick()

@@ -12,7 +12,6 @@ import me.rerere.momoly.domain.chat.ChatDataRepository
 internal class HostServices(
     private val config: ApiConfig,
     private val chatRepository: ChatDataRepository,
-    private val modelPreference: (ExtensionModelPurpose) -> String?,
 ) : ExtensionServices {
 
     override suspend fun callModel(messages: List<ApiMessage>, params: GenParams?, modelId: String?): String {
@@ -38,7 +37,6 @@ internal class HostServices(
         chatRepository.save(latest.copy(extState = next, updatedAt = System.currentTimeMillis()))
     }
 
-    override fun preferredModel(purpose: ExtensionModelPurpose): String? = modelPreference(purpose)
 
     private fun resolve(modelId: String?): Pair<ApiProvider, String>? {
         val spec = modelId?.takeIf(String::isNotBlank) ?: config.currentModel

@@ -28,7 +28,6 @@ data class Preferences(
     val autoCollapseCode: Boolean = true,
     val codeCollapseLines: Int = 5,
     val autoCollapseThinking: Boolean = true,
-    val confirmRegenerate: Boolean = false,
     val confirmDeleteCurrentVersion: Boolean = true,
     val confirmDeleteAllVersions: Boolean = true,
     val navButtonsMode: NavButtonsMode = NavButtonsMode.ON_SCROLL,

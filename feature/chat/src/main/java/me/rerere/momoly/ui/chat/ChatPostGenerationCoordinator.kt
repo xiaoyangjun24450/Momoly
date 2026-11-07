@@ -15,7 +15,6 @@ class ChatPostGenerationCoordinator(
     private val scope: CoroutineScope,
     private val chatRepository: ChatDataRepository,
     private val extensions: ExtensionGateway,
-    private val titleGenerator: ChatTitleGenerator,
 ) {
     fun runExtensions(
         session: ChatSession,
@@ -52,33 +51,6 @@ class ChatPostGenerationCoordinator(
             }
             if (ran && isCurrent()) {
                 chatRepository.get(session.id)?.let(onSessionRefreshed)
-            }
-        }
-    }
-
-    fun generateTitle(
-        session: ChatSession,
-        force: Boolean,
-        chatModel: String,
-        apiConfig: ApiConfig,
-        userName: String,
-        characterName: String,
-        onTitle: (String) -> Unit,
-    ) {
-        scope.launch {
-            try {
-                titleGenerator.generate(
-                    session = session,
-                    force = force,
-                    chatModel = chatModel,
-                    apiConfig = apiConfig,
-                    userName = userName,
-                    charName = characterName,
-                )?.let(onTitle)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                SafeLog.warn(TAG, "session_title_generation_failed", error)
             }
         }
     }

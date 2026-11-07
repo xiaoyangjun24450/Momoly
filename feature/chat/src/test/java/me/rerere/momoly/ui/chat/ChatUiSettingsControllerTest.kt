@@ -35,7 +35,6 @@ class ChatUiSettingsControllerTest {
                 autoCollapseCode = false,
                 codeCollapseLines = 12,
                 autoCollapseThinking = false,
-                confirmRegenerate = true,
                 confirmDeleteCurrentVersion = false,
                 confirmDeleteAllVersions = false,
                 navButtonsMode = NavButtonsMode.ALWAYS,
@@ -73,7 +72,6 @@ class ChatUiSettingsControllerTest {
         assertTrue(settings.autoCollapseCode)
         assertEquals(5, settings.codeCollapseLines)
         assertTrue(settings.autoCollapseThinking)
-        assertFalse(settings.confirmRegenerate)
         assertTrue(settings.confirmDeleteCurrentVersion)
         assertTrue(settings.confirmDeleteAllVersions)
         assertEquals(NavButtonsMode.ON_SCROLL, settings.navButtonsMode)

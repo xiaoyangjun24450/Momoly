@@ -27,7 +27,6 @@ data class ChatUiSettings(
     val autoCollapseCode: Boolean,
     val codeCollapseLines: Int,
     val autoCollapseThinking: Boolean,
-    val confirmRegenerate: Boolean,
     val confirmDeleteCurrentVersion: Boolean,
     val confirmDeleteAllVersions: Boolean,
     val navButtonsMode: NavButtonsMode,
@@ -84,7 +83,6 @@ class ChatUiSettingsController(
         codeCollapseLines = 5,
         autoCollapseThinking = true,
         // 确认与新建会话沿用删除偏好页时的默认行为
-        confirmRegenerate = false,
         confirmDeleteCurrentVersion = true,
         confirmDeleteAllVersions = true,
         navButtonsMode = NavButtonsMode.ON_SCROLL,

@@ -7,7 +7,6 @@ import me.rerere.momoly.ui.character.CharacterListScreen
 import me.rerere.momoly.ui.settings.AboutScreen
 import me.rerere.momoly.ui.settings.FontSizeScreen
 import me.rerere.momoly.ui.settings.SettingsScreen
-import me.rerere.momoly.ui.settings.SummarizeSettingsScreen
 import me.rerere.momoly.ui.settings.TtsConfigScreen
 import me.rerere.momoly.ui.settings.WebSearchConfigScreen
 
@@ -34,7 +33,6 @@ internal fun ChatDestinationHost(
                 onNavigateToApiConfig = { onNavigate(ChatDestination.ApiConfig) },
                 onNavigateToFontSize = { onNavigate(ChatDestination.FontSize) },
                 onNavigateToTts = { onNavigate(ChatDestination.Tts) },
-                onNavigateToSummarize = { onNavigate(ChatDestination.Summarize) },
                 onNavigateToAbout = { onNavigate(ChatDestination.About) },
             )
         }
@@ -74,6 +72,5 @@ internal fun ChatDestinationHost(
                 onAction(ChatAction.ReloadSearchConfig)
             })
         }
-        ChatDestination.Summarize -> { SummarizeSettingsScreen(onBack = onBack) }
     }
 }

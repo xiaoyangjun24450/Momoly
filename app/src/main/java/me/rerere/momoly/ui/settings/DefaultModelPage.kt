@@ -39,9 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Bolt
-import com.composables.icons.lucide.Bot
 import com.composables.icons.lucide.ChevronRight
-import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MessageSquareText
@@ -62,8 +60,8 @@ import me.rerere.momoly.ui.components.Space4
 import me.rerere.momoly.ui.components.Space8
 
 /**
- * 默认模型设置页：每个角色独立选择模型（聊天 / 标题 / 摘要），
- * 未选时回落角色记忆或全局默认；标题与摘要另支持自定义提示词。
+ * 默认模型设置页：分别选择聊天与翻译模型，
+ * 未选时回落角色记忆或全局默认；翻译支持自定义提示词。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,13 +74,11 @@ fun DefaultModelPage(onBack: () -> Unit) {
     var pickingRole by remember { mutableStateOf<DefaultModelRole?>(null) }
     var promptRole by remember { mutableStateOf<DefaultModelRole?>(null) }
 
-    // 三张卡片共用同一个模型选择器；pickingRole 决定当前在给哪个角色选模型
+    // 卡片共用同一个模型选择器；pickingRole 决定当前在给哪个角色选模型
     val pickCurrent = pickingRole?.let { state.entry(it).model } ?: ""
     val modelSelector = rememberModelSelectorState(pickCurrent, apiConfig.providers)
 
     val chatEntry = state.entry(DefaultModelRole.CHAT)
-    val titleEntry = state.entry(DefaultModelRole.TITLE)
-    val summaryEntry = state.entry(DefaultModelRole.SUMMARY)
     val translationEntry = state.entry(DefaultModelRole.TRANSLATION)
 
     val useCurrentLabel = stringResource(R.string.default_model_use_global)
@@ -99,7 +95,7 @@ fun DefaultModelPage(onBack: () -> Unit) {
 
     /**
      * 已选角色模型则显示所选，否则显示"使用当前对话模型"。
-     * 三张卡片统一使用此逻辑。
+     * 卡片统一使用此逻辑。
      */
     fun roleModelParts(entry: DefaultModelEntry): Pair<String, String> {
         val spec = entry.model.takeIf { it.isNotBlank() }
@@ -123,34 +119,6 @@ fun DefaultModelPage(onBack: () -> Unit) {
             onReset = { state = controller.reset(state, DefaultModelRole.CHAT) },
         )
 
-        val (tiIcon, tiName) = roleModelParts(titleEntry)
-        ModelCard(
-            icon = Lucide.FileText,
-            title = stringResource(R.string.default_model_title_role),
-            subtitle = stringResource(R.string.default_model_title_desc),
-            iconKey = tiIcon,
-            displayName = tiName,
-            showReset = titleEntry.model.isNotBlank(),
-            showBolt = true,
-            onPick = { pickingRole = DefaultModelRole.TITLE; modelSelector.open() },
-            onReset = { state = controller.reset(state, DefaultModelRole.TITLE) },
-            onConfig = { promptRole = DefaultModelRole.TITLE },
-        )
-
-        val (suIcon, suName) = roleModelParts(summaryEntry)
-        ModelCard(
-            icon = Lucide.Bot,
-            title = stringResource(R.string.default_model_summary),
-            subtitle = stringResource(R.string.default_model_summary_desc),
-            iconKey = suIcon,
-            displayName = suName,
-            showReset = summaryEntry.model.isNotBlank(),
-            showBolt = true,
-            onPick = { pickingRole = DefaultModelRole.SUMMARY; modelSelector.open() },
-            onReset = { state = controller.reset(state, DefaultModelRole.SUMMARY) },
-            onConfig = { promptRole = DefaultModelRole.SUMMARY },
-        )
-
         val (trIcon, trName) = roleModelParts(translationEntry)
         ModelCard(
             icon = Lucide.Languages,
@@ -166,7 +134,7 @@ fun DefaultModelPage(onBack: () -> Unit) {
         )
     }
 
-    // ── 模型选择器（三张卡片共用） ──
+    // ── 模型选择器（卡片共用） ──
     val pickRole = pickingRole
     if (pickRole != null) {
         ModelSelectorSheet(
@@ -179,7 +147,7 @@ fun DefaultModelPage(onBack: () -> Unit) {
         )
     }
 
-    // ── 提示词弹窗（标题 / 摘要） ──
+    // ── 翻译提示词弹窗 ──
     val prRole = promptRole
     if (prRole != null) {
         PromptSheet(
@@ -298,14 +266,10 @@ private fun PromptSheet(
     onDismiss: () -> Unit,
 ) {
     val title = when (role) {
-        DefaultModelRole.TITLE -> stringResource(R.string.default_model_prompt_title)
-        DefaultModelRole.SUMMARY -> stringResource(R.string.default_model_prompt_summary)
         DefaultModelRole.TRANSLATION -> stringResource(R.string.default_model_prompt_translation)
         DefaultModelRole.CHAT -> error("Chat role does not have a prompt editor")
     }
     val hint = when (role) {
-        DefaultModelRole.TITLE -> stringResource(R.string.default_model_prompt_title_hint)
-        DefaultModelRole.SUMMARY -> stringResource(R.string.default_model_prompt_summary_hint)
         DefaultModelRole.TRANSLATION -> stringResource(R.string.default_model_prompt_translation_hint)
         DefaultModelRole.CHAT -> error("Chat role does not have a prompt editor")
     }

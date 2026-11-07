@@ -52,7 +52,6 @@ import com.composables.icons.lucide.ImagePlus
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.PencilLine
 import com.composables.icons.lucide.Pin
-import com.composables.icons.lucide.RefreshCw
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Smile
@@ -104,7 +103,6 @@ fun ChatDrawerContent(
     onOpenCharacter: (fileName: String, displayName: String) -> Unit = { _, _ -> },
     onRenameSession: (String, String) -> Unit = { _, _ -> },
     onPinSession: (String, Boolean) -> Unit = { _, _ -> },
-    onRegenerateTitle: (String) -> Unit = {},
     onDeleteSession: (String) -> Unit = {},
     longPressHaptic: Boolean = true,
     onUserProfileChanged: (String, String) -> Unit = { _, _ -> },
@@ -343,7 +341,6 @@ fun ChatDrawerContent(
                         onOpen = { onOpenCharacter(character.fileName, character.displayName) },
                         onRenameSession = onRenameSession,
                         onPinSession = onPinSession,
-                        onRegenerateTitle = onRegenerateTitle,
                         onDeleteSession = onDeleteSession,
                         longPressHaptic = longPressHaptic,
                         showDivider = index != characters.lastIndex,
@@ -387,7 +384,6 @@ private fun CharacterCardRow(
     onOpen: () -> Unit,
     onRenameSession: (String, String) -> Unit,
     onPinSession: (String, Boolean) -> Unit,
-    onRegenerateTitle: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
     longPressHaptic: Boolean,
     showDivider: Boolean = true,
@@ -498,14 +494,6 @@ private fun CharacterCardRow(
                     onClick = {
                         showMenu = false
                         onPinSession(sessionId, !character.pinned)
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.regenerate_title)) },
-                    leadingIcon = { Icon(Lucide.RefreshCw, null, Modifier.size(18.dp)) },
-                    onClick = {
-                        showMenu = false
-                        onRegenerateTitle(sessionId)
                     },
                 )
                 DropdownMenuItem(

@@ -294,7 +294,7 @@ internal class WorldLifeRuntime(
         val assembled=assembler.assemble(ChatPromptAssembler.Request(
             session=session.copy(messages=history),card=card,
             userName=WorldUserProfileStore.load(context,w.name).name,worldBooks=books,preset=preset,
-            promptRegex=regex,buildHistory=datedHistory,promptHistory=datedHistory,trimSummarizedHistory=true,
+            promptRegex=regex,buildHistory=datedHistory,promptHistory=datedHistory,trimContributedHistory=true,
             updateTimed=false,reasoning=ReasoningLevel.AUTO,modelId=model,
             generationMessage=ChatMessage("assistant"),commitVariables=false,
         ))

@@ -8,20 +8,11 @@ import me.rerere.momoly.extension.QuickReply
 sealed interface ChatAction {
     data object SendMessage : ChatAction
     data class UseQuickReply(val reply: QuickReply) : ChatAction
-    data class RegenerateAssistant(
-        val timestamp: Long,
-        val scrollToBottom: Boolean,
-    ) : ChatAction
-    data class RegenerateAfterUser(
-        val timestamp: Long,
-        val scrollToBottom: Boolean,
-    ) : ChatAction
     data object NewChat : ChatAction
     data class OpenSession(val id: String, val timestamp: Long? = null) : ChatAction
     data class DeleteSession(val id: String) : ChatAction
     data class RenameSession(val id: String, val title: String) : ChatAction
     data class SetSessionPinned(val id: String, val pinned: Boolean) : ChatAction
-    data class RegenerateTitle(val id: String) : ChatAction
     data class OpenCharacter(val fileName: String, val displayName: String) : ChatAction
     data class SelectModel(val providerId: String, val modelId: String) : ChatAction
     data class UpdateReasoning(val level: ReasoningLevel) : ChatAction

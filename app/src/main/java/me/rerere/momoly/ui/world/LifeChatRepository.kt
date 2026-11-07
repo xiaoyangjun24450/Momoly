@@ -6,7 +6,7 @@ import me.rerere.momoly.data.chat.ChatSession
 import me.rerere.momoly.data.settings.WorldLifeStore
 import me.rerere.momoly.domain.chat.ChatDataRepository
 
-/** Metadata lives outside MVU alternatives, so editing/regenerating text cannot rewrite game time. */
+/** 游戏时间独立于消息版本保存，编辑正文不会改写时间。 */
 internal class LifeChatRepository(private val context: Context, private val delegate: ChatDataRepository) : ChatDataRepository by delegate {
     private fun world(file: String) = WorldLifeStore.read(context).worlds.values.firstOrNull { file in it.actors }
     override suspend fun save(session: ChatSession) {

@@ -48,8 +48,6 @@ class DefaultModelController(
     }
 
     fun defaultPrompt(role: DefaultModelRole): String = when (role) {
-        DefaultModelRole.TITLE -> DefaultModelPrompts.TITLE
-        DefaultModelRole.SUMMARY -> DefaultModelPrompts.SUMMARY
         DefaultModelRole.TRANSLATION -> DefaultModelPrompts.TRANSLATION
         DefaultModelRole.CHAT -> ""
     }

@@ -17,7 +17,6 @@ internal enum class ChatDestination {
     About,
     Search,
     WebSearch,
-    Summarize,
 }
 
 private val ChatNavigationSaver = listSaver<SnapshotStateList<ChatDestination>, String>(

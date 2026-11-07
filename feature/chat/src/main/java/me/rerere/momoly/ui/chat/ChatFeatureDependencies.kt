@@ -40,7 +40,6 @@ class ChatGenerationDependencies(
     val promptEnvironment: ChatPromptEnvironment,
     val generationResources: ChatGenerationResources,
     val searchToolDataSource: ChatSearchToolDataSource,
-    val titleSettingsDataSource: ChatTitleSettingsDataSource,
     val worldDriver: WorldChatDriver? = null,
 )
 

@@ -54,7 +54,6 @@ import me.rerere.momoly.extension.Extension
 import me.rerere.momoly.extension.ExtensionHost
 import me.rerere.momoly.extension.QuickReply
 import me.rerere.momoly.extension.builtin.QuickReplyExtension
-import me.rerere.momoly.extension.builtin.SummarizeExtension
 import me.rerere.momoly.plugin.PluginManager
 import me.rerere.momoly.plugin.PluginConfigField
 import me.rerere.momoly.plugin.PluginConfigSchema
@@ -68,7 +67,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /** 有独立设置界面的内置扩展 id */
-private val HAS_SETTINGS = setOf(SummarizeExtension.ID, QuickReplyExtension.ID)
+private val HAS_SETTINGS = setOf(QuickReplyExtension.ID)
 private const val PLUGIN_CONFIG_VALUE_CHARS = 256
 
 /**
@@ -82,9 +81,6 @@ fun ExtensionsScreen(onBack: () -> Unit) {
     // 返回时恢复，避免列表滚动位置丢失（跳回顶部）。
     val stateHolder = rememberSaveableStateHolder()
     when (val target = settingsFor) {
-        SummarizeExtension.ID -> stateHolder.SaveableStateProvider("settings") {
-            SummarizeSettings(onBack = { settingsFor = null })
-        }
         QuickReplyExtension.ID -> stateHolder.SaveableStateProvider("settings") {
             QuickReplySettings(onBack = { settingsFor = null })
         }
@@ -335,14 +331,12 @@ private fun ExtensionCard(
 
 @Composable
 private fun extName(ext: Extension): String = when (ext.info.id) {
-    SummarizeExtension.ID -> stringResource(R.string.ext_summarize)
     QuickReplyExtension.ID -> stringResource(R.string.ext_quickreply)
     else -> ext.info.name
 }
 
 @Composable
 private fun extDesc(ext: Extension): String = when (ext.info.id) {
-    SummarizeExtension.ID -> stringResource(R.string.ext_summarize_desc)
     QuickReplyExtension.ID -> stringResource(R.string.ext_quickreply_desc)
     else -> ext.info.description.ifBlank { stringResource(R.string.extension_no_description) }
 }
@@ -453,29 +447,6 @@ private fun Int.coerceTo(minimum: Int?, maximum: Int?): Int {
     if (minimum != null) result = result.coerceAtLeast(minimum)
     if (maximum != null) result = result.coerceAtMost(maximum)
     return result
-}
-
-// ── 摘要设置 ──
-@Composable
-private fun SummarizeSettings(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val controller = LocalAppContainer.current.features.extensions
-    var cfg by remember {
-        mutableStateOf(SummarizeExtension.parseConfig(controller.config(SummarizeExtension.ID)))
-    }
-    fun save(next: SummarizeExtension.Config) {
-        cfg = next
-        controller.setConfig(SummarizeExtension.ID, SummarizeExtension.encodeConfig(next))
-    }
-    BackHandler(onBack = onBack)
-    SettingsSubPage(stringResource(R.string.ext_summarize), onBack, spacing = Space12) {
-        SettingsCard(stringResource(R.string.ext_summarize)) {
-            SwitchRow(stringResource(R.string.ext_summarize_auto), cfg.auto) { save(cfg.copy(auto = it)) }
-            NumberRow(stringResource(R.string.ext_summarize_keep_recent), cfg.keepRecent) { save(cfg.copy(keepRecent = it.coerceAtLeast(0))) }
-            NumberRow(stringResource(R.string.ext_summarize_target_tokens), cfg.targetTokens) { save(cfg.copy(targetTokens = it.coerceAtLeast(1))) }
-            NumberRow(stringResource(R.string.ext_summarize_trigger_tokens), cfg.triggerTokens) { save(cfg.copy(triggerTokens = it.coerceAtLeast(1))) }
-        }
-    }
 }
 
 // ── 快捷回复设置（增删改） ──
