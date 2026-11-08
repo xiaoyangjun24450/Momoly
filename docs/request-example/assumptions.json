@@ -1,0 +1,78 @@
+{
+  "endpoint": "https://model.example/v1/chat/completions",
+  "headers": {
+    "Content-Type": "application/json",
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer EXAMPLE_KEY_NOT_REAL"
+  },
+  "note": "虚构演示配置。预设/共用规则/生活及整理指令读取当前源码；离线构造并归一化缩进，未运行Android组装器、未抓包、未请求模型。",
+  "card": {
+    "name": "林夏",
+    "description": "林夏，25岁，住在现代城市，喜欢做饭。",
+    "personality": "热情直率，说话简短，有自己的安排。",
+    "scenario": "林夏与小陈是熟悉的朋友，正在用手机私聊。"
+  },
+  "userDescription": "小陈，林夏的朋友，住在同一城区。",
+  "publicFact": "这是现代城市，没有魔法。林夏家和街角餐厅都在城区，步行相距10分钟。",
+  "worldMap": {
+    "version": 1,
+    "places": [
+      {
+        "id": "home",
+        "name": "林夏家",
+        "region": "城区",
+        "x": 0.3,
+        "y": 0.5
+      },
+      {
+        "id": "restaurant",
+        "name": "街角餐厅",
+        "region": "城区",
+        "x": 0.7,
+        "y": 0.5
+      }
+    ],
+    "routes": [
+      {
+        "from": "home",
+        "to": "restaurant",
+        "minutes": 10
+      }
+    ],
+    "userLocation": "restaurant",
+    "climates": {
+      "城区": [
+        "晴"
+      ]
+    }
+  },
+  "background": "今天在家休息，想约小陈一起吃饭，但尚未约定具体时间和地点。",
+  "schedule": [
+    {
+      "id": "home-day",
+      "start": 0,
+      "end": 1440,
+      "activity": "居家休息",
+      "location": "home",
+      "date": "",
+      "fixed": false
+    }
+  ],
+  "responseProfile": {
+    "patienceMinutes": 360,
+    "sensitivity": 1.0,
+    "recoverySpeed": 1.0
+  },
+  "profileSource": "card",
+  "extensions": [],
+  "attachments": [],
+  "mutableFacts": [],
+  "customRequestFields": {},
+  "conditions": "会话已保存卡内开场白及游戏时间；App前台、两轮成功且无额外主动联系/工具/重试；无正则、无裁剪；心情与好感不变。",
+  "sources": {
+    "data/resources/src/main/assets/defaults/online-chat-preset.json": "cf93ff102f49ad6995ceef8af29b73525b5eb81bb5731b7a2da050388f86a5c1",
+    "data/resources/src/main/assets/defaults/online-chat-worldbook.json": "277f343b24f4c65b09fd5d68a7df8b292a71bc66872d99c7376b7122863b4c4c",
+    "app/src/main/java/me/rerere/momoly/ui/world/WorldLifeRuntime.kt": "db6eda510c30ba399d33b78610bfc6c0b470100e8e708d9c8aeea53ead6882bb",
+    "core/model/src/main/java/me/rerere/momoly/data/world/LifeTurn.kt": "aa6e8b01b7fdddddf6ce958f814d044c90ffe23ca9f84568d999058180ff71cf"
+  }
+}
