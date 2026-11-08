@@ -29,6 +29,6 @@ internal class AndroidChatPromptEnvironment(
     override fun livingWorldContext(characterFile: String): String {
         val world=me.rerere.momoly.data.settings.WorldLifeStore.read(context).worlds.values.firstOrNull { characterFile in it.actors } ?: return ""
         val actor=world.actors.getValue(characterFile)
-        return "当前世界事实（不能用旧开场覆盖）：${me.rerere.momoly.data.world.LifeRules.situation(world,actor)}。心情${actor.mood}；好感${actor.affinity}。完整日程和数值不直接向用户公开。重新生成仅改写表达，不改变已经发生的事实。"
+        return "当前世界事实（不能用旧开场覆盖）：${me.rerere.momoly.data.world.LifeRules.situation(world,actor)}。\n${me.rerere.momoly.data.world.RelationshipRules.summary(actor,world.now)}\n完整日程和数值不直接向用户公开。重新生成仅改写表达，不改变已经发生的事实。"
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.sp
 import me.rerere.momoly.R
 import me.rerere.momoly.data.world.*
 import me.rerere.momoly.ui.theme.weChatColors
+import kotlin.math.roundToInt
 
 @Composable internal fun CharacterLifeProfile(world: LifeWorld?, file: String, onClose: () -> Unit) {
     val actor=world?.actors?.get(file)
@@ -32,12 +33,15 @@ import me.rerere.momoly.ui.theme.weChatColors
                 Text(LifeRules.situation(world,actor))
                 Text("心情：${actor.mood} · ${actor.moodIntensity}/100")
                 Text("好感度：${actor.affinity}/100")
+                Text(stringResource(R.string.life_waiting_emotions,
+                    actor.relationship.anxiety.roundToInt(), actor.relationship.irritation.roundToInt()))
+                Text(stringResource(R.string.life_contact_willingness,
+                    (actor.relationship.contactFactor * 100).roundToInt()))
                 Text("真实日程",fontWeight=FontWeight.SemiBold)
                 if(actor.schedule.isEmpty()) Text("当前自主安排，没有固定日程。")
                 actor.schedule.sortedWith(compareBy<LifeSchedule>{it.date}.thenBy{it.start}).forEach { s ->
                     fun hhmm(m:Int)="%02d:%02d".format(m/60,m%60)
-                    val availability=when(s.availability) { "unavailable"->"暂不回复";"brief"->"只能简短回复";else->"可正常聊天" }
-                    Text("${s.date.ifBlank{"每天"}} ${hhmm(s.start)}—${hhmm(s.end)}\n${s.activity} · ${world.map.name(s.location)}\n$availability",fontSize=13.sp)
+                    Text("${s.date.ifBlank{"每天"}} ${hhmm(s.start)}—${hhmm(s.end)}\n${s.activity} · ${world.map.name(s.location)}",fontSize=13.sp)
                 }
                 if(actor.pendingInput>actor.answeredInput) Text("有尚待回复的留言。")
             }

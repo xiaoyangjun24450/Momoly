@@ -65,7 +65,9 @@ object WorldLifeStore {
             .ifEmpty { listOf(LifeSchedule("autonomous",0,1440,"自主安排",initial.initialLocation)) }
         val actor = LifeActor(file,name,initial,initial.initialLocation,initial.background,schedule,
             initial.affinity, initial.mood,initial.moodIntensity,talkativeness,
-            nextContact = world.now + 30 * GAME_MINUTE)
+            nextContact = world.now + 30 * GAME_MINUTE,
+            relationship = LifeRelationship(profile=initial.responseProfile ?: ResponseProfile(),
+                profileSource=if(initial.responseProfile == null) "default" else "card", lastSettledAt=world.now))
         val mergedFacts=(world.facts+facts).distinctBy { it.scope to it.id }
         val added = LifeRules.advance(world.copy(actors = world.actors + (file to actor),facts=mergedFacts), world.now)
         current.copy(worlds = current.worlds + (worldName to added))

@@ -9,7 +9,7 @@ class WorldLifeTest {
     private val start=gameTime("2048-06-12T17:30:00")
     private val initial=LifeInitial(initialTime="2048-06-12T17:30:00",initialLocation="home",background="交接后休息",history="执舰官")
     private val actor=LifeActor("a","A",initial,"home","正在休息",listOf(
-        LifeSchedule("work",1080,1200,"值班","work","unavailable")),50,"平静",60,nextContact=start+60*GAME_MINUTE)
+        LifeSchedule("work",1080,1200,"值班","work")),50,"平静",60,nextContact=start+60*GAME_MINUTE)
     private fun world(name:String="A")=LifeWorld(name,map,start,start,actors=mapOf("a" to actor))
 
     @Test fun allWorldTargetsFollowRealTimeAndSwitchingPreservesPendingEvents() {
@@ -69,11 +69,20 @@ class WorldLifeTest {
         w=LifeRules.advance(w,start+30*GAME_MINUTE)
         assertEquals("home",w.actors.getValue("a").location)
         assertEquals("work",w.actors.getValue("a").travel!!.to)
-        assertEquals("brief",LifeRules.availability(w.actors.getValue("a"),w.now))
+        assertEquals(start+45*GAME_MINUTE,w.actors.getValue("a").travel!!.arrives)
         w=LifeRules.advance(w,start+45*GAME_MINUTE)
         assertNull(w.actors.getValue("a").travel)
         assertEquals("work",w.actors.getValue("a").location)
-        assertEquals("unavailable",LifeRules.availability(w.actors.getValue("a"),w.now))
+        assertEquals("值班",LifeRules.activity(w.actors.getValue("a"),w.now)!!.activity)
+    }
+    @Test fun removedCommunicationFieldIsIgnoredWhenReadingExistingSchedules() {
+        for (status in listOf("free", "brief", "unavailable")) {
+            val schedule=lifeJson.decodeFromString<LifeSchedule>("""{"id":"work","start":1080,"end":1200,"activity":"值班","location":"work","availability":"$status","date":"2048-06-12","fixed":true}""")
+            validateSchedules(listOf(schedule),map)
+            assertEquals("2048-06-12",schedule.date)
+            assertTrue(schedule.fixed)
+            assertFalse(lifeJson.encodeToString(LifeSchedule.serializer(),schedule).contains("availability"))
+        }
     }
     @Test fun rejectsInvalidMapsAndOverlappingIntervals() {
         assertThrows(IllegalArgumentException::class.java) { map.copy(userLocation="missing").validate() }

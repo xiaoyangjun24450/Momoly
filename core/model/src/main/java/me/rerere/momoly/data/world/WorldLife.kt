@@ -79,7 +79,7 @@ fun alignScheduleDates(schedules: List<LifeSchedule>, from: Long, to: Long): Lis
 /** Daily intervals are minutes after midnight; dated appointments use a yyyy-MM-dd date. */
 @Serializable data class LifeSchedule(
     val id: String, val start: Int, val end: Int, val activity: String, val location: String,
-    val availability: String = "free", val date: String = "", val fixed: Boolean = false,
+    val date: String = "", val fixed: Boolean = false,
 ) {
     fun contains(time: Long): Boolean {
         val local = gameDate(time)
@@ -92,6 +92,7 @@ fun alignScheduleDates(schedules: List<LifeSchedule>, from: Long, to: Long): Lis
     val background: String, val history: String,
     val schedule: List<LifeSchedule> = emptyList(), val affinity: Int = 30,
     val mood: String = "平静", val moodIntensity: Int = 50,
+    val responseProfile: ResponseProfile? = null,
 ) {
     fun validate(map: WorldMap): LifeInitial {
         require(version == 1) { "不支持的角色生活版本" }
@@ -99,6 +100,7 @@ fun alignScheduleDates(schedules: List<LifeSchedule>, from: Long, to: Long): Lis
         require(map.places.any { it.id == initialLocation }) { "角色初始位置不在世界地图中：$initialLocation" }
         require(background.isNotBlank() && history.isNotBlank()) { "角色必须填写此时此刻（background）和前尘往事（history）" }
         require(affinity in 0..100 && moodIntensity in 0..100 && mood.isNotBlank()) { "初始好感/心情无效" }
+        require(responseProfile?.valid() != false) { "等待耐心或情绪反应参数无效" }
         validateSchedules(schedule, map)
         require(schedule.all { map.travelMinutes(initialLocation,it.location)!=null }) { "初始位置无法到达日程地点" }
         return this
@@ -109,7 +111,6 @@ fun validateSchedules(schedules: List<LifeSchedule>, map: WorldMap) {
     require(schedules.size <= 200 && schedules.map { it.id }.distinct().size == schedules.size) { "日程过多或编号重复" }
     schedules.forEach {
         require(it.id.isNotBlank() && it.start in 0..1439 && it.end in 1..1440 && it.start < it.end && it.activity.isNotBlank()) { "日程须有有效的起止时间段与活动" }
-        require(it.availability in listOf("free", "brief", "unavailable")) { "日程通信状态无效" }
         require(map.places.any { p -> p.id == it.location }) { "日程地点不存在：${it.location}" }
         if (it.date.isNotBlank()) java.time.LocalDate.parse(it.date)
     }
@@ -138,8 +139,12 @@ fun validateSchedules(schedules: List<LifeSchedule>, map: WorldMap) {
     val sessionId: String = "", val pendingInput: Long = 0, val answeredInput: Long = 0,
     val inputReadyAt: Long = 0, val draft: String = "", val unread: Int = 0,
     val pendingAt: Long? = null,
+    val relationship: LifeRelationship = LifeRelationship(),
 )
-@Serializable data class LifeDelivery(val sessionId: String, val message: me.rerere.momoly.data.chat.ChatMessage, val gameTime: Long)
+@Serializable data class LifeDelivery(
+    val sessionId: String, val message: me.rerere.momoly.data.chat.ChatMessage, val gameTime: Long,
+    val replyEvidence: String = "", val startsContact: Boolean = false, val proactive: Boolean = false,
+)
 @Serializable data class LifeWorld(
     val name: String, val map: WorldMap, val now: Long, val target: Long,
     val actors: Map<String, LifeActor> = emptyMap(), val facts: List<LifeFact> = emptyList(),
@@ -175,6 +180,7 @@ object LifeRules {
         val actors = w.actors.mapValues { (_, a) -> a.copy(
             nextContact=now+(a.nextContact-w.now).coerceAtLeast(0), activeSchedule="",
             pendingAt=if (a.pendingInput>a.answeredInput) now else null,
+            relationship=RelationshipRules.rebase(a.relationship, now-w.now),
             travel=a.travel?.let { it.copy(arrives=now+(it.arrives-w.now).coerceAtLeast(0)) }) }
         val aligned=advance(w.copy(now=now, target=now, actors=actors), now)
         return aligned.copy(actors=aligned.actors.mapValues { (_, a) -> a.copy(
@@ -186,7 +192,6 @@ object LifeRules {
 
     fun activity(a: LifeActor, at: Long): LifeSchedule? = a.schedule.firstOrNull { it.date.isNotBlank() && it.contains(at) }
         ?: a.schedule.firstOrNull { it.date.isBlank() && it.contains(at) }
-    fun availability(a: LifeActor, at: Long) = if (a.travel != null) "brief" else activity(a, at)?.availability ?: "free"
     fun inputIsDue(w: LifeWorld, a: LifeActor): Boolean =
         (a.pendingAt ?: w.messageTimes["${a.sessionId}:${a.pendingInput}"] ?: w.now) <= w.now
     fun weather(w: LifeWorld, location: String, at: Long = w.now): String {
@@ -197,7 +202,7 @@ object LifeRules {
     }
     fun nextContact(a: LifeActor, now: Long): Long {
         val minutes = (150 - a.talkativeness.coerceIn(0f,1f) * 90 - a.affinity / 5 + Math.floorMod(a.file.hashCode() + (now / GAME_MINUTE).toInt(), 25)).toLong().coerceAtLeast(25)
-        return now + minutes * GAME_MINUTE
+        return now + (minutes / a.relationship.contactFactor.coerceIn(.05, 1.0)).toLong() * GAME_MINUTE
     }
     fun nextBoundary(w: LifeWorld): Long {
         var next = minOf(w.target, (w.now / (30 * GAME_MINUTE) + 1) * 30 * GAME_MINUTE)
@@ -230,7 +235,8 @@ object LifeRules {
                     ?: "现在在${w.map.name(a.location)}，${s?.activity ?: "自主安排"}。")
             }
             val decay = ((at / (60 * GAME_MINUTE)) - (w.now / (60 * GAME_MINUTE))).toInt().coerceAtLeast(0)
-            if (decay > 0) a = a.copy(moodIntensity = (a.moodIntensity - decay * 3).coerceAtLeast(20))
+            if (decay > 0 && a.relationship.restingMood == null)
+                a = a.copy(moodIntensity = (a.moodIntensity - decay * 3).coerceAtLeast(minOf(20, a.moodIntensity)))
             a
         }
         var updated=w.copy(now = at, actors = actors)
@@ -249,7 +255,7 @@ object LifeRules {
                 fact.copy(content=value,source=source,revision=fact.revision+1)
             }
         }
-        return updated.copy(facts=facts,revisions=updated.revisions+revisions)
+        return RelationshipRules.advance(updated.copy(facts=facts,revisions=updated.revisions+revisions), at)
     }
     fun situation(w: LifeWorld, a: LifeActor): String = buildString {
         append(gameLabel(w.now)); append("，")

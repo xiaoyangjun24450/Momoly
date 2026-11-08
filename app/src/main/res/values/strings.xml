@@ -906,4 +906,6 @@
     <string name="world_map_close">关闭</string>
     <string name="world_map_travelling">%1$s（途中）</string>
     <string name="world_map_route">%1$s 至 %2$s，查看路线耗时</string>
+    <string name="life_waiting_emotions">焦虑：%1$d/100 · 烦躁：%2$d/100</string>
+    <string name="life_contact_willingness">主动联系意愿：%1$d%%</string>
 </resources>
