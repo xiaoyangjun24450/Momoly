@@ -4,7 +4,7 @@ import me.rerere.momoly.data.api.ApiConfig
 import me.rerere.momoly.data.api.ApiProvider
 import me.rerere.momoly.data.api.ImageGenerationSettings
 import me.rerere.momoly.data.api.ReasoningLevel
-import me.rerere.momoly.data.api.ModelType
+import me.rerere.momoly.data.api.chatModelSelection
 
 interface ChatModelDataSource {
     fun characterModel(characterName: String): String
@@ -21,18 +21,7 @@ class ChatModelController(
     private val dataSource: ChatModelDataSource,
 ) {
     fun effectiveModelSpec(characterName: String?, apiConfig: ApiConfig): String? {
-        val characterModel = characterName
-            ?.takeIf { it.isNotBlank() }
-            ?.let(dataSource::characterModel)
-            ?.takeIf { it.isNotBlank() }
-        val defaultModel = dataSource.defaultChatModel().takeIf { it.isNotBlank() }
-        val preferred = listOfNotNull(characterModel, defaultModel, apiConfig.currentModel.takeIf { it.isNotBlank() })
-        val enabledChatModels = apiConfig.providers.filter { it.enabled && it.type != "gradio" }
-            .flatMap { provider ->
-                provider.models.filter { it.type == ModelType.CHAT && it.id.isNotBlank() }
-                    .map { "${provider.id}::${it.id}" }
-            }
-        return preferred.firstOrNull { it in enabledChatModels } ?: enabledChatModels.firstOrNull()
+        return apiConfig.chatModelSelection()?.let { (provider, model) -> "${provider.id}::${model.id}" }
     }
 
     fun select(characterName: String?, modelSpec: String): ReasoningLevel {

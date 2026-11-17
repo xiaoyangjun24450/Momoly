@@ -5,6 +5,12 @@
     "Accept": "text/event-stream",
     "Authorization": "Bearer EXAMPLE_KEY_NOT_REAL"
   },
+  "connection": {
+    "base_url": "https://model.example/v1",
+    "protocol": "openai-chat-completions",
+    "model": "example-chat",
+    "selectionSource": "API 配置页连接后选择；普通聊天与角色生活共用，旧角色/默认聊天覆盖不参与"
+  },
   "note": "虚构演示配置。预设/共用规则/生活及整理指令读取当前源码；离线构造并归一化缩进，未运行Android组装器、未抓包、未请求模型。",
   "card": {
     "name": "林夏",
@@ -72,7 +78,7 @@
   "sources": {
     "data/resources/src/main/assets/defaults/online-chat-preset.json": "cf93ff102f49ad6995ceef8af29b73525b5eb81bb5731b7a2da050388f86a5c1",
     "data/resources/src/main/assets/defaults/online-chat-worldbook.json": "277f343b24f4c65b09fd5d68a7df8b292a71bc66872d99c7376b7122863b4c4c",
-    "app/src/main/java/me/rerere/momoly/ui/world/WorldLifeRuntime.kt": "db6eda510c30ba399d33b78610bfc6c0b470100e8e708d9c8aeea53ead6882bb",
+    "app/src/main/java/me/rerere/momoly/ui/world/WorldLifeRuntime.kt": "16d61ae0db6bc56c22d65784671d2f5a1eb04559e7350b8b089afe00dc1874af",
     "core/model/src/main/java/me/rerere/momoly/data/world/LifeTurn.kt": "aa6e8b01b7fdddddf6ce958f814d044c90ffe23ca9f84568d999058180ff71cf"
   }
 }

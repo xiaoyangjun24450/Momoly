@@ -37,7 +37,8 @@ user_description = '小陈，林夏的朋友，住在同一城区。'
 public_fact = '这是现代城市，没有魔法。林夏家和街角餐厅都在城区，步行相距10分钟。'
 background = '今天在家休息，想约小陈一起吃饭，但尚未约定具体时间和地点。'
 headers = {'Content-Type':'application/json', 'Accept':'text/event-stream', 'Authorization':'Bearer EXAMPLE_KEY_NOT_REAL'}
-endpoint = 'https://model.example/v1/chat/completions'
+connection = dict(base_url='https://model.example/v1', protocol='openai-chat-completions', model='example-chat', selectionSource='API 配置页连接后选择；普通聊天与角色生活共用，旧角色/默认聊天覆盖不参与')
+endpoint = connection['base_url'] + '/chat/completions'
 
 def summary(at):
     return '\n'.join([
@@ -107,7 +108,7 @@ def main_messages(history, at):
     return before + history + [default_rule] + after + [living, message('system', life_prompt(at))]
 
 def body(messages, assessment=False):
-    return dict(model='example-chat', stream=True, stream_options=dict(include_usage=True),
+    return dict(model=connection['model'], stream=True, stream_options=dict(include_usage=True),
                 temperature=0.1 if assessment else 0.9, max_tokens=2048 if assessment else 8192, messages=messages)
 
 def assessment_messages(at, user, reply):
@@ -136,7 +137,7 @@ for filename, title, payload in requests:
         assert json.loads(payload['messages'][1]['content'])['mutableFacts'] == []
 assert [m for m in requests[0][2]['messages'] if m['role'] != 'system'] == hist1
 assert [m for m in requests[2][2]['messages'] if m['role'] != 'system'] == hist2
-save('assumptions.json', dict(endpoint=endpoint, headers=headers, note='虚构演示配置。预设/共用规则/生活及整理指令读取当前源码；离线构造并归一化缩进，未运行Android组装器、未抓包、未请求模型。',
+save('assumptions.json', dict(endpoint=endpoint, headers=headers, connection=connection, note='虚构演示配置。预设/共用规则/生活及整理指令读取当前源码；离线构造并归一化缩进，未运行Android组装器、未抓包、未请求模型。',
     card=card, userDescription=user_description, publicFact=public_fact, worldMap=world_map,
     background=background, schedule=schedule, responseProfile=dict(patienceMinutes=360, sensitivity=1.0, recoverySpeed=1.0),
     profileSource='card', extensions=[], attachments=[], mutableFacts=[], customRequestFields={},

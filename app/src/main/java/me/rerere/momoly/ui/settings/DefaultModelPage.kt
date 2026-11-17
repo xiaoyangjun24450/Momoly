@@ -42,7 +42,6 @@ import com.composables.icons.lucide.Bolt
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.MessageSquareText
 import com.composables.icons.lucide.RotateCcw
 import me.rerere.momoly.R
 import me.rerere.momoly.di.LocalAppContainer
@@ -78,7 +77,6 @@ fun DefaultModelPage(onBack: () -> Unit) {
     val pickCurrent = pickingRole?.let { state.entry(it).model } ?: ""
     val modelSelector = rememberModelSelectorState(pickCurrent, apiConfig.providers)
 
-    val chatEntry = state.entry(DefaultModelRole.CHAT)
     val translationEntry = state.entry(DefaultModelRole.TRANSLATION)
 
     val useCurrentLabel = stringResource(R.string.default_model_use_global)
@@ -106,19 +104,6 @@ fun DefaultModelPage(onBack: () -> Unit) {
     BackHandler(onBack = onBack)
 
     SettingsSubPage(stringResource(R.string.default_model_title), onBack) {
-        val (chIcon, chName) = roleModelParts(chatEntry)
-        ModelCard(
-            icon = Lucide.MessageSquareText,
-            title = stringResource(R.string.default_model_chat),
-            subtitle = stringResource(R.string.default_model_chat_desc),
-            iconKey = chIcon,
-            displayName = chName,
-            showReset = chatEntry.model.isNotBlank(),
-            showBolt = false,
-            onPick = { pickingRole = DefaultModelRole.CHAT; modelSelector.open() },
-            onReset = { state = controller.reset(state, DefaultModelRole.CHAT) },
-        )
-
         val (trIcon, trName) = roleModelParts(translationEntry)
         ModelCard(
             icon = Lucide.Languages,

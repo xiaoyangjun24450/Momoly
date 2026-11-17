@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.input.TextFieldState
 import me.rerere.momoly.ui.components.FloatingWindow
-import me.rerere.momoly.ui.components.rememberModelSelectorState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
@@ -124,7 +123,6 @@ internal fun ChatContent(
     val nav = rememberChatNavigationStack(startAtSettings)
     fun navBack() { nav.removeLastOrNull() }
     val overlayState = rememberChatOverlayState()
-    val modelSelector = rememberModelSelectorState(model.displaySpec ?: "", model.apiConfig.providers)
     var scrollToBottomTrigger by remember { mutableIntStateOf(0) }
 
     val worldSelection = rememberHomeWorldSelection()
@@ -164,7 +162,7 @@ internal fun ChatContent(
                     effect.text,
                     if (effect.long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT,
                 ).show()
-                ChatEffect.OpenModelSelector -> modelSelector.open()
+                ChatEffect.OpenModelSelector -> nav.add(Screen.ApiConfig)
                 ChatEffect.ScrollToBottom -> scrollToBottomTrigger++
                 ChatEffect.HideKeyboard -> keyboardController?.hide()
             }
@@ -329,7 +327,6 @@ internal fun ChatContent(
                             onAction(ChatAction.SendMessage)
                             // 编辑是原地更新，不滚动到底部
                         },
-                        onSelectModel = { modelSelector.open() },
                         onSelectReasoning = { overlayState.showReasoningPicker = true },
                         onOpenImageGenerationSettings = { overlayState.showImageGenerationSettings = true },
                         onOpenSearch = { overlayState.showSearch = true },
@@ -643,7 +640,6 @@ internal fun ChatContent(
 
     ChatPickerOverlays(
         state = state,
-        modelSelector = modelSelector,
         displayProvider = displayProv,
         displayModelId = displayModelId,
         showReasoning = overlayState.showReasoningPicker,

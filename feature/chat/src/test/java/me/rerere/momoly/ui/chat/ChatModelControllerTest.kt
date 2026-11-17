@@ -38,7 +38,7 @@ class ChatModelControllerTest {
             override fun load() = config
             override fun save(config: ApiConfig) = Unit
         })
-        source.defaultModel = "new::model"
+        config = config.copy(currentModel = "new::model")
         source.reasoningByModel["new::model"] = ReasoningLevel.HIGH
         assertEquals("api::model", state.selectedModelSpec)
         state.reload(null)
@@ -50,7 +50,7 @@ class ChatModelControllerTest {
     }
 
     @Test
-    fun effectiveModelUsesCharacterThenDefaultThenApiFallback() {
+    fun effectiveModelUsesApiSelectionDespiteLegacyOverrides() {
         val source = FakeChatModelDataSource()
         val controller = ChatModelController(source)
         val config = ApiConfig(
@@ -64,9 +64,9 @@ class ChatModelControllerTest {
 
         assertEquals("api::model", controller.effectiveModelSpec("Character", config))
         source.defaultModel = "default::model"
-        assertEquals("default::model", controller.effectiveModelSpec("Character", config))
+        assertEquals("api::model", controller.effectiveModelSpec("Character", config))
         source.characterModels["Character"] = "character::model"
-        assertEquals("character::model", controller.effectiveModelSpec("Character", config))
+        assertEquals("api::model", controller.effectiveModelSpec("Character", config))
     }
 
     @Test

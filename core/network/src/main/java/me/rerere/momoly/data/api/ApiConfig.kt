@@ -33,6 +33,15 @@ data class ApiConfig(
     val currentModel: String = "",  // "providerId::modelId"
 )
 
+/** 聊天与角色生活共用配置页的选择，旧角色覆盖不再参与。 */
+fun ApiConfig.chatModelSelection(): Pair<ApiProvider, ModelInfo>? {
+    val choices = providers.filter { it.enabled && it.type == "openai" }.flatMap { provider ->
+        provider.models.filter { it.type == ModelType.CHAT && it.id.isNotBlank() }.map { provider to it }
+    }
+    return choices.firstOrNull { (provider, model) -> "${provider.id}::${model.id}" == currentModel }
+        ?: choices.firstOrNull()
+}
+
 /**
  * 校正当前选中模型：提供商被删除/禁用、或该模型已从其列表移除时清空选择。
  * enabled 只过滤选择列表，不清理旧选择的话，禁用后的提供商仍会被拿去发请求。

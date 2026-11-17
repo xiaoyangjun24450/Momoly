@@ -8,5 +8,6 @@ android {
 
 dependencies {
     api(project(":core:network"))
+    testImplementation(libs.kotlinx.coroutines.core)
 
 }

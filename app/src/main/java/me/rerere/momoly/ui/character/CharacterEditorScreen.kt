@@ -73,7 +73,6 @@ import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.FileJson
 import com.composables.icons.lucide.ImagePlus
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.MessageSquareText
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.SlidersHorizontal
 import com.composables.icons.lucide.Trash2
@@ -85,9 +84,7 @@ import me.rerere.momoly.data.character.CharacterCard
 import me.rerere.momoly.data.character.DepthPrompt
 import me.rerere.momoly.ui.components.LoadingState
 import me.rerere.momoly.ui.components.rememberEditorDraft
-import me.rerere.momoly.ui.components.ModelSelectorSheet
 import me.rerere.momoly.ui.components.PickerRow
-import me.rerere.momoly.ui.components.rememberModelSelectorState
 import me.rerere.momoly.ui.components.AppTopBar
 import me.rerere.momoly.ui.components.AppIconButton
 import me.rerere.momoly.ui.components.AppTextArea
@@ -96,7 +93,6 @@ import me.rerere.momoly.ui.components.Space4
 import me.rerere.momoly.ui.components.Space8
 import me.rerere.momoly.ui.components.Space12
 import me.rerere.momoly.ui.components.Space16
-import me.rerere.momoly.ui.settings.ModelCard
 
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -111,7 +107,6 @@ fun CharacterEditorScreen(card: CharacterCard, onBack: () -> Unit, cardFileName:
     CharacterEditorContent(
         draft = draft,
         cardFileName = cardFileName,
-        modelKey = card.name.ifBlank { cardFileName },
         onDraftChange = editor::update,
         onSave = { snapshot ->
             editor.update(snapshot)
@@ -125,7 +120,6 @@ fun CharacterEditorScreen(card: CharacterCard, onBack: () -> Unit, cardFileName:
 private fun CharacterEditorContent(
     draft: CharacterEditorState,
     cardFileName: String,
-    modelKey: String,
     onDraftChange: (CharacterEditorState) -> Unit,
     onSave: (CharacterEditorState) -> Unit,
 ) {
@@ -168,8 +162,6 @@ private fun CharacterEditorContent(
     }
 
     var showAddTagDialog by remember { mutableStateOf(false) }
-    val charModelKey = modelKey
-    var charModel by remember { mutableStateOf(controller.model(charModelKey)) }
     var showGreetingDialog by remember { mutableStateOf(draft.addingGreeting) }
     var editingGreetingIdx by remember { mutableStateOf(draft.greetingIndex) }
     val greetingDraft = remember { TextFieldState(draft.greetingDraft) }
@@ -287,12 +279,6 @@ private fun CharacterEditorContent(
     }
 
     fun saveAndBack() = onSave(snapshot())
-
-    // API 配置：角色卡模型选择器和模型选择面板都要用
-    val apiConfig = remember(controller) { controller.apiConfig() }
-
-    // 角色默认模型选择面板
-    val modelSelector = rememberModelSelectorState(charModel, apiConfig.providers)
 
     BackHandler { saveAndBack() }
 
@@ -606,23 +592,6 @@ private fun CharacterEditorContent(
                 })
             }
 
-            // 角色默认聊天模型（未设置时使用全局默认）
-            ModelCard(
-                icon = Lucide.MessageSquareText,
-                title = stringResource(R.string.char_default_model),
-                subtitle = stringResource(R.string.char_default_model_desc),
-                iconKey = charModel.substringAfter("::", "").takeIf { charModel.isNotBlank() } ?: "",
-                displayName = if (charModel.isNotBlank()) {
-                    val p = apiConfig.providers.find { it.id == charModel.substringBefore("::") && it.enabled }
-                    val mid = charModel.substringAfter("::", "")
-                    p?.models?.find { it.id == mid }?.name ?: mid.ifBlank { charModel }
-                } else stringResource(R.string.default_model_use_global),
-                showReset = charModel.isNotBlank(),
-                showBolt = false,
-                onPick = { modelSelector.open() },
-                onReset = { controller.saveModel(charModelKey, ""); charModel = "" },
-            )
-
             WorldBookSelector(
                 controller = controller,
                 selectedIds = enabledWorldBookIds,
@@ -645,13 +614,5 @@ private fun CharacterEditorContent(
         }
     }
 
-    // 角色默认模型选择面板
-    ModelSelectorSheet(
-        state = modelSelector,
-        onSelect = { providerId, modelId ->
-            val spec = "$providerId::$modelId"
-            controller.saveModel(charModelKey, spec)
-            charModel = spec
-        },
-    )
+
 }

@@ -61,7 +61,16 @@ object ModelApi {
 
     private fun openAiModel(obj: JSONObject?): ModelInfo? {
         val id = obj?.optString("id")?.takeIf { it.isNotBlank() } ?: return null
-        val guess = modelInfoOf(id)
+        val domain = obj.optString("domain").lowercase()
+        // 模型目录也会包含向量、语音等服务，不能把它们交给聊天配置页。
+        if (domain in setOf("embedding", "audio", "3dgeneration") ||
+            Regex("(^|[-_/])(embeddings?|rerank(er)?|tts|whisper|moderation|asr)([-_/]|$)", RegexOption.IGNORE_CASE).containsMatchIn(id)) return null
+        val inferred = modelInfoOf(id)
+        val guess = when (domain) {
+            "imagegeneration" -> inferred.copy(type = ModelType.IMAGE)
+            "videogeneration" -> inferred.copy(type = ModelType.VIDEO)
+            else -> inferred
+        }
         val arch = obj.optJSONObject("architecture")
         val params = obj.optJSONArray("supported_parameters").strings()
         if (arch == null && params.isEmpty()) return guess

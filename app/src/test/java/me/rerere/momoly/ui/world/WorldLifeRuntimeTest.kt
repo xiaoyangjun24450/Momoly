@@ -29,8 +29,12 @@ import org.robolectric.annotation.Config
 class WorldLifeRuntimeTest {
     private val context=ApplicationProvider.getApplicationContext<Context>()
     private val repo=LifeChatRepository(context,RoomChatDataRepository(context))
+    private var includeOtherModel = false
     private val config=object:ApiConfigRepository {
-        override fun load()=ApiConfig(listOf(ApiProvider(id="test",name="test",models=listOf(ModelInfo("test")))))
+        override fun load()=ApiConfig(buildList {
+            if (includeOtherModel) add(ApiProvider(id="other",models=listOf(ModelInfo("other"))))
+            add(ApiProvider(id="test",name="test",models=listOf(ModelInfo("test"))))
+        }, currentModel="test::test")
         override fun save(config:ApiConfig) { }
     }
     private val extensions=object:ExtensionGateway {
@@ -89,6 +93,7 @@ class WorldLifeRuntimeTest {
     }
 
     @Test fun generationKeepsAuthoredScenarioAlongsideCurrentWorldState()=runBlocking {
+        includeOtherModel = true
         val file=File(CharacterRepository.charsDir(context),"${CharacterRepository.listNames(context).single()}.json")
         val json=org.json.JSONObject(file.readText())
         val scenario="你们使用专属频道联系，频道暗号是蓝色纸鹤。"
@@ -102,6 +107,7 @@ class WorldLifeRuntimeTest {
         r.foreground(true);elapse(60)
         waitFor { caughtUp() };r.foreground(false)
         assertTrue(requests.isNotEmpty())
+        assertTrue(requests.all { it.providerId == "test" && it.modelId == "test" })
         assertTrue(requests.all { request -> request.messages.any { scenario in it.content } })
         assertTrue(requests.all { "年月日使用此处世界日期" in it.messages.last().content })
     }

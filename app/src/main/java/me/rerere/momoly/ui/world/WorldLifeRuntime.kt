@@ -183,7 +183,6 @@ internal class WorldLifeRuntime(
                 if (!appendInput()) return@launch
                 val session=repository.get(sessionId) ?: return@launch
                 val input=session.messages.lastOrNull { it.role=="user" } ?: return@launch
-                CharacterModelStore.set(context,session.charFile,"${provider.id}::$modelId")
                 WorldLifeStore.tick(context,wallClock())
                 WorldLifeStore.world(context,card.worldName) { w ->
                     if(session.charFile !in w.actors) return@world w
@@ -260,15 +259,13 @@ internal class WorldLifeRuntime(
         return false
     }
 
-    private fun model(file: String): Pair<ApiProvider,String> {
+    private fun model(): Pair<ApiProvider,String> {
         val config=api.load()
-        val spec=CharacterModelStore.get(context,file).ifBlank { DefaultModelStore.get(context,DefaultModelRole.CHAT.storageKey).model }
-        val provider=config.providers.firstOrNull { it.enabled && it.id==spec.substringBefore("::") }
-        if (provider!=null && provider.models.any { it.id==spec.substringAfter("::") }) return provider to spec.substringAfter("::")
-        val fallback=config.providers.firstOrNull { it.enabled && it.models.any { m -> m.type==ModelType.CHAT } }
-            ?: error("请先配置并启用聊天模型，世界进度与待回复内容已保存。")
-        return fallback to fallback.models.first { it.type==ModelType.CHAT }.id
+        val (provider, model) = config.chatModelSelection()
+            ?: error("请先在 API 配置中连接并选择聊天模型，世界进度与待回复内容已保存。")
+        return provider to model.id
     }
+
     private suspend fun session(w: LifeWorld, a: LifeActor, card: CharacterCard): ChatSession {
         val session=me.rerere.momoly.domain.chat.ChatSessionCoordinator(repository).forCharacter(card,a.file,a.name)
         WorldLifeStore.world(context,w.name) { current -> current.copy(actors=current.actors +
@@ -281,7 +278,7 @@ internal class WorldLifeRuntime(
         require(loaded.failures.isEmpty()) { "角色关联资源读取失败，进度已保留。" }
         val card=requireNotNull(loaded.card)
         val session=session(w,a,card)
-        val (provider,model)=model(a.file)
+        val (provider,model)=model()
         val isReply=a.pendingInput>a.answeredInput && LifeRules.inputIsDue(w,a)
         // Committed messages remain history when the phone's clock or time zone changes.
         val history=session.messages.filterNot { it.isHidden }

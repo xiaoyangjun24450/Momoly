@@ -1,9 +1,8 @@
 package me.rerere.momoly.ui.settings
 
 import android.content.Context
+import me.rerere.momoly.data.api.chatModelSelection
 import me.rerere.momoly.data.api.ApiConfigStore
-import me.rerere.momoly.data.settings.DefaultModelRole
-import me.rerere.momoly.data.settings.DefaultModelStore
 import me.rerere.momoly.data.settings.FontSizeStore
 import me.rerere.momoly.data.settings.LanguageStore
 import me.rerere.momoly.data.settings.Preferences
@@ -22,8 +21,7 @@ internal class AndroidSettingsDataSource(
     override fun fontPreview(): FontPreviewData = FontPreviewData(
         userName = UserProfileStore.getName(context),
         avatar = UserAvatarStore.load(context),
-        modelSpec = DefaultModelStore.get(context, DefaultModelRole.CHAT.storageKey).model
-            .ifBlank { ApiConfigStore.loadConfig(context).currentModel },
+        modelSpec = ApiConfigStore.loadConfig(context).chatModelSelection()?.let { (provider, model) -> "${provider.id}::${model.id}" }.orEmpty(),
     )
     override fun saveFontScale(scale: Float) = FontSizeStore.setScale(context, scale)
     override fun promptLogEnabled(): Boolean = PromptLogStore.isEnabled(context)

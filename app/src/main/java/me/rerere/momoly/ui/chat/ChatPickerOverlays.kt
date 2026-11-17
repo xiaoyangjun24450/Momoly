@@ -2,14 +2,11 @@ package me.rerere.momoly.ui.chat
 
 import androidx.compose.runtime.Composable
 import me.rerere.momoly.data.api.ApiProvider
-import me.rerere.momoly.ui.components.ModelSelectorSheet
-import me.rerere.momoly.ui.components.ModelSelectorState
 
 /** 只读取模型、搜索和会话选择状态，避免把所有弹层细节留在 ChatContent 主布局中。 */
 @Composable
 internal fun ChatPickerOverlays(
     state: ChatUiState,
-    modelSelector: ModelSelectorState,
     displayProvider: ApiProvider?,
     displayModelId: String,
     showReasoning: Boolean,
@@ -23,11 +20,6 @@ internal fun ChatPickerOverlays(
     onOpenSearchConfig: () -> Unit,
     onAction: (ChatAction) -> Unit,
 ) {
-    ModelSelectorSheet(
-        state = modelSelector,
-        onSelect = { providerId, modelId -> onAction(ChatAction.SelectModel(providerId, modelId)) },
-    )
-
     if (showReasoning) {
         ReasoningPickerSheet(
             current = state.model.reasoning,

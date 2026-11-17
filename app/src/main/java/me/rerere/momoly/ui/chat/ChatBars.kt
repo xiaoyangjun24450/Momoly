@@ -157,7 +157,6 @@ internal fun ChatBottomArea(
     searchProvider: String = "",
     builtInSearchEnabled: Boolean = false,
     onStop: () -> Unit = {},
-    onSelectModel: () -> Unit = {},
     onSelectReasoning: () -> Unit = {},
     onOpenImageGenerationSettings: () -> Unit = {},
     onOpenSearch: () -> Unit = {},
@@ -358,15 +357,6 @@ internal fun ChatBottomArea(
                     add {
                         ChatToolCell(stringResource(R.string.file), onFile) {
                             Icon(Lucide.Paperclip, null, Modifier.size(28.dp), tint = colors.iconTint)
-                        }
-                    }
-                    add {
-                        ChatToolCell(stringResource(R.string.select_model), onSelectModel) {
-                            if (currentModelId.isNotBlank()) {
-                                ProviderIcon(currentModelId, size = 30.dp)
-                            } else {
-                                Icon(Lucide.Package, null, Modifier.size(28.dp), tint = colors.iconTint)
-                            }
                         }
                     }
                     add {

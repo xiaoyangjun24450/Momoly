@@ -489,7 +489,7 @@ class ChatViewModel(
 
     // ── 配置 / 用户资料 ──
 
-    /** 当前页面的模型：角色记忆 > ROLE_CHAT > apiConfig.currentModel 回退，全空时返回 null */
+    /** 当前页面的模型：API 配置中的统一聊天选择，无可用模型时返回 null */
     private fun displayModelSpec(): String? = model.selectedModelSpec
 
     /** 从角色列表/编辑器返回时刷新当前卡：字段或图片可能已被编辑 */
