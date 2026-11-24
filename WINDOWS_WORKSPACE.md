@@ -13,6 +13,8 @@
 
 工具安装见宿主 `docs/AGENT_SETUP.md`；`.tools` 与 `.gradle-home` 均被宿主忽略，不提交。
 
+本机实际取包方式（2026-11-08）：`services.gradle.org` 与 GitHub（foojay 重定向目标）都连不上，Gradle 9.7.0 取自腾讯镜像 `mirrors.cloud.tencent.com/gradle/`、JDK 21 取自 Azul CDN（`zulu21.54.109-ca-jdk21.0.13.0.3-win_x64.zip`），两者分别按官方 SHA-256（`84fbba45…d873ae`、`7428890c…2cf306`）校验后才解压；SDK 平台 37.0 与 build-tools 36.0.0 直接取 `dl.google.com` 官方 ZIP，因为 `sdkmanager` 会卡在 0 字节下载。
+
 ## 命令
 
 在本目录或任意工作目录运行：
@@ -20,13 +22,14 @@
 ```powershell
 .\windows_build.bat -BuildOnly        # 仅编译 debug
 .\windows_build.bat -Abi arm64-v8a    # 编译并安装指定 ABI
+.\windows_build.bat -Reinstall        # 卸载后再装（会清除应用数据）
 .\windows_build.bat -Serial 序列号     # 多设备时指定目标
 .\windows_simulation.bat              # 查看当前应用 Info 及以上日志
 ```
 
 入口调用宿主 `scripts/windows_repository.ps1`，`windows-host.json` 声明构建任务 `:app:assembleDebug`、APK 元数据位置、使用的 JDK/SDK 与 Gradle 版本。
 
-`services.gradle.org` 会重定向到 GitHub CDN，自动下载可能很慢或超时；此时用浏览器从 https://services.gradle.org/distributions/gradle-9.7.0-bin.zip 下载完整 ZIP，放到宿主 `.tools/downloads/gradle-9.7.0-bin.zip`，入口会按官方 SHA-256 校验后再解压。
+`services.gradle.org` 在本网络不可达（会重定向到 GitHub CDN）；需要重新下载时从腾讯镜像取同一发行包，保存为宿主 `.tools/downloads/gradle-9.7.0-bin.zip`，入口会按官方 SHA-256 校验后再解压。
 
 ## 构建与安装
 
@@ -57,4 +60,8 @@
 
 - 首次构建需要联网下载 AGP/Kotlin/Compose 依赖。本机到 `dl.google.com`、GitHub CDN 偶发连接超时，表现为 `Plugin ... was not found` 或 `Could not resolve ...`；确认是网络原因时直接重试，已下载的部分会复用。
 - 安装报 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`：手机系统（如 MIUI）需在开发者选项开启「USB 安装」并在手机上确认，属于设备侧授权，不是构建失败。
+- 安装报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE: ... signatures do not match newer version`：设备上已有同名包，且是另一把 debug keystore 签的（例如别的机器或旧环境装的）。同名不同签名无法覆盖安装，只能先卸载；加 `-Reinstall` 让入口自动卸载再装，或在手机上手动卸载。两者都会清除该应用的数据。
 - Gradle daemon 用 JDK 21，而 `build-logic` 的 Java toolchain 要求 17：宿主入口会把 `.tools` 下所有 JDK 注册到 `.gradle-home/gradle.properties` 的 `org.gradle.java.installations.paths`，两个版本的 JDK 都需保留。
+- 构建报 `Unable to download toolchain matching the requirements ({languageVersion=21 ...}) from 'https://api.foojay.io/...'`：本机没有 JDK 21，Gradle 便去 foojay 拉取，而它的下载地址指向 GitHub、在本网络不可达。装好 `.tools/jdk-21`（见工具链一节）即可，不需要联网。
+- 构建报 `No matching toolchains found for requested specification`：`.gradle-home/gradle.properties` 里缺少 `org.gradle.java.installations.paths`，重新跑一次 `windows_build.bat` 会自动写入。
+- `Could not find ...gradle-9.7.0-bin.zip` / Wrapper 下载失败：`services.gradle.org` 不可达，按上文用腾讯镜像补 `.tools/downloads/gradle-9.7.0-bin.zip`。

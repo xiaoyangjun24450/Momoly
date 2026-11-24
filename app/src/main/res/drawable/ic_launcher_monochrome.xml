@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 单色层（Android 13 主题图标）：只留剪影。小鱼用 evenOdd 掏空，
+     猫脸整体实心——两条气泡在单色下会并成一块，这是这一层的正常代价。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:scaleX="1.13"
+        android:scaleY="1.13"
+        android:pivotX="0"
+        android:pivotY="0"
+        android:translateX="-12.02"
+        android:translateY="-10.02">
+
+        <path
+            android:pathData="M23,66 L17.4,78.6 Q15.8,82.4 20.2,80.6 L33,73.4 Z"
+            android:fillColor="#FFFFFFFF" />
+
+        <!-- 气泡 + 小鱼（evenOdd 让小鱼的轮廓变成镂空） -->
+        <path
+            android:pathData="M34,10 C52,10 66,24 66,42 C66,52 62,60 55,66 C50,70.6 44,73 37,73 C28,73 21,69 17,62 C14,57 13,52 13,45 C13,25 20,10 34,10 Z M30,40 C30,34 36.4,29.4 44,29.4 C51.6,29.4 57,34.6 57,40 C57,45.4 51.6,50 44,50 C36.4,50 30,45.6 30,40 Z M31,40 L21.6,33.4 Q19.4,32 19.6,35.4 L19.6,44.6 Q19.4,48 21.6,46.6 Z"
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd" />
+
+        <path
+            android:pathData="M51,66 L61,41 L71,57 L85,39 L93,63 C101,68 105,75 101,80 C99.4,82.4 96.4,83.6 93.6,83.6 C97,88 99,94 94,99 C88,105 79,106 70,106 C58,106 50,99 47,89 C44,79 45,71 51,66 Z"
+            android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>

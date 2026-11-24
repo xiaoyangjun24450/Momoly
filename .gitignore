@@ -2,6 +2,10 @@
 .gradle/
 .gradle-user/
 build/
+# 本机构建脚本与沙箱诊断产生的本地目录，不入库
+.gradle-home/
+.build-out/
+.acl-recovery/
 !gradle/wrapper/gradle-wrapper.jar
 
 # IDE
