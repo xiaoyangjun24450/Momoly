@@ -5,7 +5,7 @@
     "include_usage": true
   },
   "temperature": 0.1,
-  "max_tokens": 2048,
+  "max_tokens": 4096,
   "messages": [
     {
       "role": "system",
@@ -13,7 +13,7 @@
     },
     {
       "role": "user",
-      "content": "{\"gameTime\":\"2026-11-07T20:01\",\"character\":\"林夏，25岁，住在现代城市，喜欢做饭。\",\"personality\":\"热情直率，说话简短，有自己的安排。\",\"current\":{\"background\":\"今天在家休息，想约小陈一起吃饭，但尚未约定具体时间和地点。\",\"location\":\"home\",\"schedule\":[{\"id\":\"home-day\",\"start\":0,\"end\":1440,\"activity\":\"居家休息\",\"location\":\"home\",\"date\":\"\",\"fixed\":false}]},\"relationshipSummary\":\"【当前关系与等待状态】\\n当前世界时间：2026-11-07 20:01；好感 30/100；心情：平静（强度 50/100）。\\n阶段：正常；焦虑 0/100；烦躁 0/100。\\n人物反应：耐心 360 分钟，冷落敏感度 1.0，恢复速度 1.0（1为中性）。\\n主动联系意愿：正常。高好感不改变忙闲。\\n目前没有等待用户回应的已发消息。\\n用户最后回复：2026-11-07 20:01。\\n用户没有告知有效的离开原因或返回时间；不要推断其原因。\\n最近变化（2026-11-07 20:01）：用户已回复，等待结束；已有情绪和关系变化保留，随后续互动逐步恢复。\\n按已保存状态表达，可不主动联系；用户回来不必立刻恢复，也不要重复责问。冷落变化已由程序结算，不要再次扣分。\",\"responseProfileUninitialized\":false,\"map\":{\"version\":1,\"places\":[{\"id\":\"home\",\"name\":\"林夏家\",\"region\":\"城区\",\"x\":0.3,\"y\":0.5},{\"id\":\"restaurant\",\"name\":\"街角餐厅\",\"region\":\"城区\",\"x\":0.7,\"y\":0.5}],\"routes\":[{\"from\":\"home\",\"to\":\"restaurant\",\"minutes\":10}],\"userLocation\":\"restaurant\",\"climates\":{\"城区\":[\"晴\"]}},\"mutableFacts\":[],\"userMessages\":\"好\",\"candidateReply\":\"那就定明天中午？\"}"
+      "content": "{\"gameTime\":\"2026-11-07T20:01\",\"character\":\"林夏，25岁，住在现代城市，喜欢做饭。\",\"personality\":\"热情直率，说话简短，有自己的安排。\",\"current\":{\"background\":\"今天在家休息，想约小陈一起吃饭，但尚未约定具体时间和地点。\",\"location\":\"home\",\"schedule\":[{\"id\":\"home-day\",\"start\":0,\"end\":1440,\"activity\":\"居家休息\",\"location\":\"home\",\"date\":\"\",\"fixed\":false}]},\"relationshipSummary\":\"【当前关系与等待状态】\\n当前世界时间：2026-11-07 20:01；好感 30/100；心情：平静（强度 50/100）。\\n阶段：正常；焦虑 0/100；烦躁 0/100。\\n人物反应：耐心 360 分钟，冷落敏感度 1.0，恢复速度 1.0（1为中性）。\\n主动联系意愿：正常。高好感不改变忙闲。\\n目前没有等待用户回应的已发消息。\\n用户最后回复：2026-11-07 20:01。\\n用户没有告知有效的离开原因或返回时间；不要推断其原因。\\n最近变化（2026-11-07 20:01）：用户已回复，等待结束；已有情绪和关系变化保留，随后续互动逐步恢复。\\n当前应表现：正常相处，可主动联系；没有被冷落。\\n按已保存状态表达，可不主动联系；用户回来不必立刻恢复，也不要重复责问。冷落变化已由程序结算，不要再次扣分。\",\"responseProfileUninitialized\":false,\"map\":{\"version\":1,\"places\":[{\"id\":\"home\",\"name\":\"林夏家\",\"region\":\"城区\",\"x\":0.3,\"y\":0.5},{\"id\":\"restaurant\",\"name\":\"街角餐厅\",\"region\":\"城区\",\"x\":0.7,\"y\":0.5}],\"routes\":[{\"from\":\"home\",\"to\":\"restaurant\",\"minutes\":10}],\"userLocation\":\"restaurant\",\"climates\":{\"城区\":[\"晴\"]}},\"mutableFacts\":[],\"userMessages\":\"好\",\"candidateReply\":\"那就定明天中午？\"}"
     }
   ]
 }

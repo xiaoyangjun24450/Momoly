@@ -31,7 +31,7 @@ def code(value):
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=2)
     return '<pre><code>' + esc(text) + '</code></pre>'
 
-def main_metadata(payload):
+def main_metadata(payload, catchup=False):
     before = [
         ('预设：梦鲸底色', ['preset'], '来自内置预设的固定文字。它不是林夏的身份或身世。'),
         ('预设：线上聊天与身份规则', ['preset','card','user'], '规则正文来自预设；其中“林夏”和“小陈”由角色名与用户名替换进去。'),
@@ -54,7 +54,9 @@ def main_metadata(payload):
         ('预设：承接本轮', ['preset'], '来自预设，规定如何接话、如何保持人物意愿。'),
         ('预设：发送前边界', ['preset','card'], '来自预设；角色名替换后要求只输出林夏实际发送的话。'),
         ('当前世界与关系简述', ['state','book','program'], '状态提供时间、当前位置、心情、好感和等待结果；世界地图把地点编号转换为名称。程序负责拼文字与追加限制。'),
-        ('生活提示 lifePrompt', ['state','book','program'], '这是混合消息，不是一整块角色卡。状态、世界地点和程序规则拼在一起；下面逐项拆开。'),
+        ('离线补齐合并提示 catchUpPrompt' if catchup else '生活提示 lifePrompt', ['state','book','program'],
+         '离线整段只发一次请求：列出确定性收集到的联系时机，要求按 slot 返回 catchUp 数组；程序还原各自游戏时间后统一投递，不是每个时机各请求一次。' if catchup
+         else '这是混合消息，不是一整块角色卡。状态、世界地点和程序规则拼在一起；下面逐项拆开。'),
     ]
     assert len(before) == len(payload['messages'])
     return before
@@ -66,12 +68,23 @@ def life_breakdown():
         ['活动、处境', badges(['state']), '当前居家休息；背景短句说明尚未约定吃饭的具体时间地点。日程与移动不再阻挡或截短回复。'],
         ['好感、心情、焦虑、烦躁', badges(['state']), '当前为 30、平静/50、0、0；这些是本次快照，不代表所有角色都固定这样。'],
         ['耐心与情绪反应参数', badges(['card','state']), '本例初始配置来自角色卡：耐心 360 分钟，两项倍率均为 1.0。运行状态保留这份配置；不是每轮重新从聊天猜。'],
-        ['等待状态、最后回复、最近变化', badges(['state','history','program']), '程序按实际收到/送达的消息推进。你刚回复，先前等待结束；模型只能看到本次摘要。'],
+        ['等待状态、最后回复、最近变化', badges(['state','history','program']), '程序按实际收到/送达的消息推进。你刚回复，先前等待结束；模型只能看到本次摘要。有等待时摘要还会写出“已连续 N 小时没有回复”，并按阶段给出“当前应表现”的口吻（正常等待/不安/烦躁/疏远/逐渐恢复）。'],
         ['日程', badges(['card','state']), '本例初始卡给出每日居家安排，运行时复制到当前日程。后续已确认约定可更新当前日程，不自动改原卡模板。'],
         ['私有未发送草稿', badges(['state','candidate']), '本例为空。若有，最多取 3000 字符；没发出去，不能当用户已知道。'],
         ['当前可变事实', badges(['book','state']), '本例为空。实际运行时条目权限来自世界书，内容取当前运行值；不是任意新增记忆。'],
         ['地点 ID 与名称列表', badges(['book']), 'home=林夏家、restaurant=街角餐厅；这只是可用地点，不代表双方约好了去哪。'],
         ['回复任务、JSON 要求、证据与修改限制', badges(['program']), '程序临时加入：用户留言必须正常回复，不因忙碌延后或限制长度；返回正文和状态建议、不能把猜测当事实。不是角色自己的台词。'],
+    ])
+
+def catchup_breakdown():
+    spec_catch = spec['catchUp']
+    return table(['离线补齐提示中的部分', '来源', '本例含义'], [
+        ['推进区间', badges(['program','state']), f"从 {spec_catch['now']} 推进到 {spec_catch['target']}；超过 5 游戏分钟积压才进入合并补齐，推进只在内存中完成，不写盘也不请求。"],
+        ['联系时机 slots', badges(['state','program']), '程序按日程/联系间隔确定性地收集：' + '、'.join(f"[{i}] {slot}" for i, slot in enumerate(spec_catch['slots'])) + '。只有通过这些时机的角色才需要一次请求。'],
+        ['输出格式 catchUp', badges(['program']), '模型只返回 {"catchUp":[{"slot":序号,"text":"正文"}]}；程序按 slot 还原每条消息的游戏时间后统一提交。旧 messages 字符串数组和纯正文仍兼容。'],
+        ['请求次数', badges(['program']), '每个有联系时机的角色最多 1 次；没有联系时机 0 次。待答用户回复仍另走单次 respond，不并入本请求。'],
+        ['状态摘要与口吻', badges(['state','history','program']), '与普通主请求同一份关系摘要；新增“当前应表现”口吻，长期未回复时摘要会写连续未回复小时数。本例刚回复过，没有等待行。'],
+        ['与普通主请求相同', badges(['card','book','preset','history']), '角色卡、世界书、预设、历史与来源标注和 01/02 完全一致，只是末尾把 lifePrompt 换成 catchUpPrompt；不重复生成状态整理。'],
     ])
 
 FIELD_META = {
@@ -90,11 +103,12 @@ FIELD_META = {
 def render_packet(filename, title, packet_id, expanded=False):
     payload = json.loads((HERE / filename).read_text(encoding='utf-8'))
     assessment = 'state' in filename
+    catchup = 'catchup' in filename
     if assessment:
         meta = [('状态整理指令', ['program'], '独立的记账规则：提取状态变化、不扮演角色、不续写聊天；不是原聊天预设。'),
                 ('待整理的数据包', ['card','book','state','history','candidate'], '这里的 user 只是 API 消息身份，不表示里面所有内容都是用户说的话。它是程序打包的 JSON 字符串；按字段逐项拆解如下。')]
     else:
-        meta = main_metadata(payload)
+        meta = main_metadata(payload, catchup=catchup)
     rows = []
     cards = []
     for i, (message, (name, keys, explanation)) in enumerate(zip(payload['messages'], meta), 1):
@@ -109,6 +123,8 @@ def render_packet(filename, title, packet_id, expanded=False):
                 kinds, why = FIELD_META[key]
                 field_rows.append([f'<code>{esc(key)}</code>', badges(kinds) + '<p>' + esc(why) + '</p>', code(value)])
             detail = table(['字段', '来源与解释', '实际值（完整）'], field_rows)
+        elif not assessment and catchup and i == len(meta):
+            detail = catchup_breakdown()
         elif not assessment and i == len(meta):
             detail = life_breakdown()
         cards.append(f'<article class="message" id="{anchor}"><h3>{i:02d} · {esc(name)}</h3><div>{badges(keys)} <code class="role">API 身份：{esc(message["role"])}</code></div><p>{esc(explanation)}</p>{detail}<details class="raw"><summary>展开这条消息的完整原文</summary>{code(message["content"])}</details></article>')
@@ -142,20 +158,29 @@ packets = ''.join([
     render_packet('01b-state-if-plain.json', '01b｜仅在第一轮返回纯文字时：状态整理', 'request-01b'),
     render_packet('02-main-after-ok.json', '02｜你说“好”后的主请求', 'request-02'),
     render_packet('02b-state-if-plain.json', '02b｜仅在第二轮返回纯文字时：状态整理', 'request-02b'),
+    render_packet('03-catchup.json', '03｜重开补齐：整段离线只发一次合并请求', 'request-03'),
 ])
 reference = '''
 <h2 id="formats">示例以外：其他请求格式</h2>
-<p>上面的四份 JSON 演示角色生活分支。业务分支决定带哪些资料，供应商适配器决定最终 HTTP 字段。下面保留其他分支的速查。</p>
+<p>上面的五份 JSON（01 / 01b / 02 / 02b / 03）演示角色生活分支，其中 03 是重开后的离线合并补齐请求，不是新的接口。业务分支决定带哪些资料，供应商适配器决定最终 HTTP 字段。下面保留其他分支的速查。</p>
 <details><summary>普通聊天首轮与角色生活主请求的差异</summary>
 <div class="table-wrap"><table><thead><tr><th>内容</th><th>加入条件与限制</th></tr></thead><tbody>
 <tr><td>普通首轮</td><td>ChatGenerationRunner：关联预设，未关联则用内置线上聊天预设；按开关加入用户人设、角色描述/性格/情景。默认关闭角色对话示例，不发送整个角色 JSON。</td></tr>
 <tr><td>世界书与历史</td><td>共用规则书和关联世界书经过常驻/关键词、概率、互斥、递归和容量筛选，默认扫描最近 2 条消息。历史取当前会话未隐藏的有效消息，含已存开场白、最新输入和已发布回复。</td></tr>
 <tr><td>扩展与顺序</td><td>已启用的 PromptContributor 可在历史前后或指定位置插入资料，也可要求跳过部分历史。通常是历史前资料 → 历史及插入项 → 历史后资料，预设可调整；无内置摘要注入。</td></tr>
 <tr><td>世界状态</td><td>有世界状态时追加时间、位置/移动、天气、活动、处境及当前关系/等待摘要。普通首轮不附 lifePrompt 状态输出协议；启用搜索时可附应用函数工具。</td></tr>
-<tr><td>角色生活分支</td><td>WorldLifeRuntime.respond：回复、主动联系、离线补齐共用基础组装器；过滤地图条目和其他角色私有事实，已识别事实优先角色私有版本、其次公共版本，并以当前内容替换旧内容。历史可加游戏时间，末尾另加 lifePrompt；不伪造用户消息触发主动联系。</td></tr>
+<tr><td>角色生活分支</td><td>WorldLifeRuntime.respond / catchUp：回复、主动联系、离线补齐共用基础组装器；过滤地图条目和其他角色私有事实，已识别事实优先角色私有版本、其次公共版本，并以当前内容替换旧内容。历史可加游戏时间；回复与主动联系末尾加 lifePrompt，整段离线合并补齐末尾加 catchUpPrompt；不伪造用户消息触发主动联系。</td></tr>
 <tr><td>生活说明</td><td>列出时间、位置/移动与预计到达时间、天气、活动、处境、心情/强度、好感、全部当前日程、地点 ID/名称和本轮任务；日程不含 availability 通信状态。待答时必须正常回复，不因忙碌延后或截成一段、240 字符；主动联系仍可返回 messages=[]，离线补齐取当时游戏时间。草稿取 actor.draft 前 3000 字符；列角色私有可变事实，绑定条目即使列出，聊天写入仍拒绝修改。</td></tr>
-<tr><td>关系/等待摘要</td><td>只取当前角色：好感、心情/强度、阶段、焦虑/烦躁、耐心/敏感度/恢复速度、定性联系意愿；等待消息前 400 字符、送达/预期回复时间、等待/超期分钟、未回应主动联系次数、最后用户回复时间、已知离开原因/返回时间及证据、最近变化与时间。不附全量日志、内部消息 ID 或规则版本。</td></tr>
+<tr><td>关系/等待摘要</td><td>只取当前角色：好感、心情/强度、阶段、焦虑/烦躁、耐心/敏感度/恢复速度、定性联系意愿；等待消息前 400 字符、送达/预期回复时间、等待/超期分钟、未回应主动联系次数、最后用户回复时间、已知离开原因/返回时间及证据、最近变化与时间。有等待时另写“已连续 N 小时没有回复”，并追加按阶段的“当前应表现”口吻。主动联系实际送达即开始等待，不要求模型声明需要回复。不附全量日志、内部消息 ID 或规则版本。</td></tr>
 <tr><td>生活参数与输出</td><td>预设参数、思考档位 AUTO，应用函数工具为空；供应商内置工具看模型配置。提示文字要求 LifeTurn JSON，含正文及可选状态/日程/事实建议、证据、expectsReply/replyEvidence、首次 responseProfile、有用户证据的 absence、有限的 anxietyDelta/irritationDelta。禁止重复扣冷落损失；无初始日程且自主安排时要求提出每日作息。默认没有强制 JSON schema 参数；返回格式不是上行包格式。</td></tr>
+</tbody></table></div></details>
+<details><summary>离线合并补齐（03）：与普通主请求的差异</summary>
+<div class="table-wrap"><table><thead><tr><th>项目</th><th>触发或限制</th></tr></thead><tbody>
+<tr><td>触发</td><td>当前世界已处理时间与目标时间相差超过 5 游戏分钟，且没有待回答的用户消息。程序先在内存中按边界确定性推进整段时间，只收集每个角色到期的主动联系时机。</td></tr>
+<tr><td>请求次数</td><td>每个有联系时机的角色最多 1 次合并请求；没有联系时机 0 次。待答用户回复仍另走单次 respond，不并入本请求，也不为每个历史时机各发一次。</td></tr>
+<tr><td>组包差异</td><td>角色卡、世界书、预设、历史、状态摘要与普通主请求相同，末尾把 lifePrompt 换成 catchUpPrompt；列出 slots 及其游戏时间，要求只返回需要留言的时机。</td></tr>
+<tr><td>输出与提交</td><td>期望 {"catchUp":[{"slot":序号,"text":"正文"}]}，也兼容旧 messages 字符串数组和纯正文；程序按 slot 还原各自游戏时间，分配稳定消息顺序后统一写入发件箱并提交一次状态变化。坏 JSON/空正文报错保留进度。</td></tr>
+<tr><td>进度与暂停</td><td>正常只走少量轮次；24 轮安全上限只防异常循环，不再按旧“12 次事件”要求用户点继续。切世界或失败会取消在途请求并保留进度。</td></tr>
 </tbody></table></div></details>
 <details><summary>工具续答、内嵌前端和扩展：各自如何组包</summary>
 <div class="table-wrap"><table><thead><tr><th>分支</th><th>消息与参数</th><th>限制</th></tr></thead><tbody>
@@ -191,7 +216,7 @@ reference = '''
 <h2 id="maintenance">开发者如何维护这份示例</h2>
 <p>需要 Python 3，仅使用标准库。在仓库根目录执行：</p>
 <pre>python -X utf8 docs/request-example/generate.py</pre>
-<p>此命令读取当前源码模板，重建五份 JSON 和本页，不联网。<a href="request-example/generate.py">generate.py</a> 管情境和组包，<a href="request-example/render_annotated.py">render_annotated.py</a> 管来源解释、其他格式与页面；<a href="request-example/assumptions.json">assumptions.json</a> 记录假设及源码哈希。只改解释时可运行：</p>
+<p>此命令读取当前源码模板，重建六份 JSON（五份请求示例 + assumptions.json）和本页，不联网。<a href="request-example/generate.py">generate.py</a> 管情境和组包，<a href="request-example/render_annotated.py">render_annotated.py</a> 管来源解释、其他格式与页面；<a href="request-example/assumptions.json">assumptions.json</a> 记录假设及源码哈希。只改解释时可运行：</p>
 <pre>python -X utf8 docs/request-example/render_annotated.py</pre>
 <p>生成脚本并不运行 Android 组装器。新增字段、顺序或格式需人工同步脚本和说明，再重新生成并检查，不要只改生成后的 HTML。核对日期也需同步。触发条件维护在<a href="请求情况.md">请求情况</a>。</p>
 '''
@@ -215,24 +240,24 @@ css = '''
 :root{color-scheme:light;--ink:#1c2b39;--muted:#526374;--line:#d7e1e8}*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:var(--ink);font:16px/1.75 system-ui,-apple-system,"Segoe UI",sans-serif}main{max-width:1140px;margin:auto;padding:42px 28px 80px}h1{font-size:clamp(27px,4vw,40px);line-height:1.3;margin:12px 0}h2{font-size:25px;margin-top:42px}h3{font-size:18px;margin:8px 0}p{margin:10px 0}a{color:#175ba6;text-underline-offset:3px}nav{display:flex;gap:10px;flex-wrap:wrap;margin:24px 0}nav a{padding:7px 14px;background:#fff;border:1px solid var(--line);border-radius:8px;text-decoration:none}.eyebrow{letter-spacing:.1em;font-size:12px;color:var(--muted)}.lead{font-size:20px;max-width:860px}.note{border-left:4px solid #2f6ca9;padding:14px 18px;background:#eaf2fb;margin:20px 0}.warn{border-color:#b07821;background:#fff5df}.kinds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.kind{background:white;border:1px solid var(--line);border-radius:12px;padding:16px}.kind p{font-size:14px;color:var(--muted)}.badge{display:inline-block;white-space:nowrap;border:1px solid transparent;border-radius:5px;padding:2px 8px;margin:2px 4px 2px 0;font-size:12px;font-weight:650}.card{color:#69328b;background:#f0e7f7}.book{color:#225c49;background:#e5f2eb}.state{color:#8a531a;background:#fff0d7}.history{color:#245e91;background:#e5effb}.preset{color:#884158;background:#f9e8ef}.user{color:#34616b;background:#e6f2f4}.program{color:#4d5866;background:#e9edf1}.candidate{color:#995030;background:#fce9df}.table-wrap{max-width:100%;overflow-x:auto;background:white;border:1px solid var(--line);border-radius:10px;margin:18px 0}table{width:100%;border-collapse:collapse;font-size:14px}th{text-align:left;color:#425367;background:#edf2f6}td,th{padding:13px 16px;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:anywhere}tbody tr:last-child td{border-bottom:0}pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;background:#f0f4f7;border-radius:8px;padding:16px;font:13px/1.8 Consolas,monospace;margin:12px 0}td pre{min-width:230px;max-height:none;margin:8px 0;padding:10px}code{font:13px/1.7 Consolas,monospace;overflow-wrap:anywhere}.packet{margin:20px 0;border:1px solid #b7c9d9;border-radius:12px;background:white;padding:20px;scroll-margin-top:20px}summary{cursor:pointer;font-weight:650;line-height:1.6}.packet>summary{font-size:20px}.count{font-size:13px;color:var(--muted);font-weight:400;margin-left:10px}.message{margin:24px 0;border-top:1px solid var(--line);padding-top:20px;scroll-margin-top:20px}.role{color:var(--muted);display:inline-block}.raw{margin:12px 0}.raw>summary{font-size:14px;color:#325d83}.footer{font-size:13px;color:var(--muted);margin-top:30px}button{font:inherit;background:white;color:#23496c;border:1px solid #b7c9d9;border-radius:7px;padding:8px 14px;cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #2d76c5;outline-offset:3px}.toolbar{display:flex;gap:10px;flex-wrap:wrap}@media(max-width:760px){main{padding:24px 16px 50px}.kinds{grid-template-columns:repeat(2,minmax(0,1fr))}.packet{padding:14px}td,th{padding:10px}td pre{min-width:180px}.lead{font-size:18px}}@media(max-width:430px){.kinds{grid-template-columns:1fr}h2{font-size:22px}}
 '''
 page = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>请求包内容｜Momoly</title><style>{css}</style></head><body><main>
-<div class="eyebrow">MOMOLY · 请求包内容 · 更新 2026-11-10 · 示例日期 2026-11-07</div><h1>这句话背后，模型收到了哪些资料？</h1>
+<div class="eyebrow">MOMOLY · 请求包内容 · 更新 2026-11-21 · 示例日期 2026-11-07</div><h1>这句话背后，模型收到了哪些资料？</h1>
 <p class="lead">角色卡告诉模型“这个人是谁”，世界书提供环境与资料，运行状态告诉模型“此刻怎么样”。请求里还会放入预设、聊天记录、用户资料和程序规则。</p>
 <div class="note"><strong>来源标签不是 API 身份。</strong>一条 <code>system</code> 消息既可能来自角色卡，也可能来自世界书或状态；一条 <code>user</code> 消息也可能是程序打包的数据，不能把它一律理解为用户原话。</div>
-<nav aria-label="页面导航"><a href="README.md">文档索引</a><a href="请求情况.md">何时发请求</a><a href="#formats">其他格式</a><a href="#容量与记忆边界">容量与记忆</a><a href="#maintenance">维护方法</a><a href="#sources">资料分类</a><a href="#initial">初始与当前</a><a href="#timeline">对话过程</a><a href="#request-01">第一轮</a><a href="#request-01b">第一轮整理</a><a href="#request-02">第二轮</a><a href="#request-02b">第二轮整理</a></nav>
+<nav aria-label="页面导航"><a href="README.md">文档索引</a><a href="请求情况.md">何时发请求</a><a href="#formats">其他格式</a><a href="#容量与记忆边界">容量与记忆</a><a href="#maintenance">维护方法</a><a href="#sources">资料分类</a><a href="#initial">初始与当前</a><a href="#timeline">对话过程</a><a href="#request-01">第一轮</a><a href="#request-01b">第一轮整理</a><a href="#request-02">第二轮</a><a href="#request-02b">第二轮整理</a><a href="#request-03">离线补齐</a></nav>
 <h2 id="sources">先分清八种来源</h2><div class="kinds">{overview}</div>
 <h2 id="initial">同一件事，初始设定和当前状态放在不同地方</h2><p>角色卡与世界书中的设定可以被复制进运行存档。发送时要看实际读取的是哪一份，不能只凭内容像“人物资料”就算作角色卡。</p>{initial_table}
 <div class="note"><strong>两个容易混淆的例子：</strong>“林夏热情直率”是角色卡；“林夏现在有点烦躁”是状态。“只发聊天正文”既写在当前内置预设，也写在共用世界书里；相似的规则不代表它们来自同一个文件。</div>
-<h2 id="timeline">把你的五句话逐步对上</h2>{timeline}<p><strong>正常共 2 次请求；一轮补整理为 3 次；两轮都补整理为 4 次。</strong>本例排除额外主动联系、工具调用和失败重试。每次都重新带所需上下文，服务器不会自动续上上次聊天。</p>
-<h2>请求外壳也有自己的来源</h2><p>四个可能请求均发往同一演示接口：<code>POST {esc(spec['endpoint'])}</code>。模型：<code>example-chat</code>。</p>{network_table}
+<h2 id="timeline">把你的五句话逐步对上</h2>{timeline}<p><strong>正常共 2 次请求；一轮补整理为 3 次；两轮都补整理为 4 次。</strong>关闭约一小时后重开则另加 03 的 1 次离线合并请求（每个角色最多 1 次，无联系时机 0 次，待答回复另计）。本例排除额外主动联系、工具调用和失败重试。每次都重新带所需上下文，服务器不会自动续上上次聊天。</p>
+<h2>请求外壳也有自己的来源</h2><p>五个请求示例均发往同一演示接口：<code>POST {esc(spec['endpoint'])}</code>。模型：<code>example-chat</code>。</p>{network_table}
 <details class="raw"><summary>查看完整示例配置与请求头</summary>{code(spec)}</details>
-<h2>逐个请求查看：每一条都标明来源</h2><p>先看每个请求的来源表，再看逐条解释；“展开完整原文”保留全部提示词。来源说明不改动原始 JSON。</p><div class="toolbar"><button type="button" id="expand">展开四个请求</button><button type="button" id="collapse">收起四个请求</button></div>
+<h2>逐个请求查看：每一条都标明来源</h2><p>先看每个请求的来源表，再看逐条解释；“展开完整原文”保留全部提示词。来源说明不改动原始 JSON。</p><div class="toolbar"><button type="button" id="expand">展开五个请求</button><button type="button" id="collapse">收起五个请求</button></div>
 {packets}
 <div class="note warn"><strong>当前示例中的信息缺口：</strong>第二轮状态整理只拿到“好”和“那就定明天中午？”，没有整个邀约历史。不能自动理解为用户已确认明天中午；状态整理也不能凭空补回上次请求。程序的原文检查不能完全保证模型语义判断正确。</div>
 {reference}
 <p class="footer">本页为离线构造示例，不是真机抓包，生成脚本不调用模型。提示词模板来自仓库源码；人物、状态和服务配置为虚构，部分拼装逻辑由脚本模拟，不能代替真实运行验证。<a href="../AGENTS.md">维护规则</a></p>
 </main><script>document.getElementById('expand').addEventListener('click',()=>document.querySelectorAll('.packet').forEach(e=>e.open=true));document.getElementById('collapse').addEventListener('click',()=>document.querySelectorAll('.packet').forEach(e=>e.open=false));document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{{const target=document.getElementById(a.getAttribute('href').slice(1));if(target?.classList.contains('packet'))target.open=true;}}));</script></body></html>'''
-paths = [HERE / f for f in ['01-main-after-free.json','01b-state-if-plain.json','02-main-after-ok.json','02b-state-if-plain.json']]
+paths = [HERE / f for f in ['01-main-after-free.json','01b-state-if-plain.json','02-main-after-ok.json','02b-state-if-plain.json','03-catchup.json']]
 before = {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
 (HERE.parent / '请求包内容.html').write_text(page, encoding='utf-8')
 assert before == {p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
-print('Annotated 34 API messages across four requests; all payloads unchanged.')
+print('Annotated 50 API messages across five requests; all payloads unchanged.')

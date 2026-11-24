@@ -16,6 +16,7 @@ runtime = RUNTIME.read_text(encoding='utf-8-sig')
 turn_source = TURN.read_text(encoding='utf-8-sig')
 relationship_instruction = re.search(r'const val RELATIONSHIP_OUTPUT_INSTRUCTIONS = """(.*?)"""', turn_source, re.S).group(1).strip()
 life_template = re.search(r'private fun lifePrompt.*?= """(.*?)"""\.trimIndent', runtime, re.S).group(1)
+catchup_template = re.search(r'private fun catchUpPrompt.*?= """(.*?)"""\.trimIndent', runtime, re.S).group(1)
 assessment_template = re.search(r'private suspend fun assessPlainReply.*?val instruction="""(.*?)"""\.trimIndent', runtime, re.S).group(1)
 
 def dumps(value):
@@ -40,7 +41,8 @@ headers = {'Content-Type':'application/json', 'Accept':'text/event-stream', 'Aut
 connection = dict(base_url='https://model.example/v1', protocol='openai-chat-completions', model='example-chat', selectionSource='API 配置页连接后选择；普通聊天与角色生活共用，旧角色/默认聊天覆盖不参与')
 endpoint = connection['base_url'] + '/chat/completions'
 
-def summary(at):
+def summary(at, last_reply=None):
+    last_reply = last_reply or at
     return '\n'.join([
         '【当前关系与等待状态】',
         f'当前世界时间：{at}；好感 30/100；心情：平静（强度 50/100）。',
@@ -48,9 +50,11 @@ def summary(at):
         '人物反应：耐心 360 分钟，冷落敏感度 1.0，恢复速度 1.0（1为中性）。',
         '主动联系意愿：正常。高好感不改变忙闲。',
         '目前没有等待用户回应的已发消息。',
-        f'用户最后回复：{at}。',
+        f'用户最后回复：{last_reply}。',
         '用户没有告知有效的离开原因或返回时间；不要推断其原因。',
         f'最近变化（{at}）：用户已回复，等待结束；已有情绪和关系变化保留，随后续互动逐步恢复。',
+        # 本例没有等待中的消息，所以源码里的“已连续 N 小时没有回复”不出现。
+        '当前应表现：正常相处，可主动联系；没有被冷落。',
         '按已保存状态表达，可不主动联系；用户回来不必立刻恢复，也不要重复责问。冷落变化已由程序结算，不要再次扣分。',
     ])
 
@@ -81,10 +85,33 @@ def life_prompt(at):
     assert '${' not in result and '$RELATIONSHIP' not in result
     return result
 
+def catchup_prompt(at, target, slots, last_reply=None):
+    lines = []
+    for raw in catchup_template.splitlines():
+        line = raw.strip()
+        if line.startswith('${slots.withIndex()'):
+            line = '；'.join(f'[{index}] {slot}' for index, slot in enumerate(slots))
+        elif line.startswith('${if(a.relationship.profileSource'):
+            line = '人物反应参数已固定。'
+        else:
+            line = line.replace('${gameLabel(w.now)}', at).replace('${gameLabel(w.target)}', target)
+        line = line.replace('${w.name}', '现代城市').replace('${LifeRules.situation(w,a)}', situation(at))
+        line = line.replace('${RelationshipRules.summary(a,w.now)}', summary(at, last_reply))
+        lines.append(line)
+    result = '\n'.join(lines).strip()
+    assert '${' not in result
+    return result
+
+def catchup_messages(history, at, target, slots, last_reply=None):
+    messages = main_messages(history, at, last_reply)
+    # 真实运行器先组装通用上下文，再把 catchUpPrompt 追加在原生活提示的位置。
+    assert messages[-1]['content'].startswith('这是手机上的角色私聊。使用角色的口吻')
+    return messages[:-1] + [message('system', catchup_prompt(at, target, slots, last_reply))]
+
 def message(role, content):
     return dict(role=role, content=content)
 
-def main_messages(history, at):
+def main_messages(history, at, last_reply=None):
     prompts = {p['identifier']:p for p in preset['prompts']}
     before, after = [], []
     target = before
@@ -104,12 +131,12 @@ def main_messages(history, at):
         if content:
             target.append(message(item.get('role', 'system'), content))
     default_rule = message('system', macro(book['entries']['0']['content']))
-    living = message('system', f'当前世界事实（不能用旧开场覆盖）：{situation(at)}。\n{summary(at)}\n完整日程和数值不直接向用户公开。重新生成仅改写表达，不改变已经发生的事实。')
+    living = message('system', f'当前世界事实（不能用旧开场覆盖）：{situation(at)}。\n{summary(at, last_reply)}\n完整日程和数值不直接向用户公开。重新生成仅改写表达，不改变已经发生的事实。')
     return before + history + [default_rule] + after + [living, message('system', life_prompt(at))]
 
 def body(messages, assessment=False):
     return dict(model=connection['model'], stream=True, stream_options=dict(include_usage=True),
-                temperature=0.1 if assessment else 0.9, max_tokens=2048 if assessment else 8192, messages=messages)
+                temperature=0.1 if assessment else 0.9, max_tokens=4096 if assessment else 8192, messages=messages)
 
 def assessment_messages(at, user, reply):
     instructions = '\n'.join(line.strip() for line in assessment_template.splitlines()).strip()
@@ -122,11 +149,14 @@ def assessment_messages(at, user, reply):
 
 hist1 = [message('assistant', '【游戏时间 2026-11-07 20:00】\n明天你有空吗？'), message('user', '【游戏时间 2026-11-07 20:00】\n有空')]
 hist2 = hist1 + [message('assistant', '【游戏时间 2026-11-07 20:00】\n来找我吃饭'), message('user', '【游戏时间 2026-11-07 20:01】\n好')]
+catchup = dict(now='2026-11-07 20:02', target='2026-11-07 21:00', lastReply='2026-11-07 20:01',
+    slots=['2026-11-07 20:16', '2026-11-07 20:41'])
 requests = [
     ('01-main-after-free.json', '第一次主请求：用户说“有空”', body(main_messages(hist1, '2026-11-07 20:00'))),
     ('01b-state-if-plain.json', '可选整理：第一轮仅返回“来找我吃饭”时', body(assessment_messages('2026-11-07 20:00', '有空', '来找我吃饭'), True)),
     ('02-main-after-ok.json', '第二次主请求：用户说“好”', body(main_messages(hist2, '2026-11-07 20:01'))),
     ('02b-state-if-plain.json', '可选整理：第二轮仅返回“那就定明天中午？”时', body(assessment_messages('2026-11-07 20:01', '好', '那就定明天中午？'), True)),
+    ('03-catchup.json', '重开补齐：整段离线只发一次合并请求', body(catchup_messages(hist2, catchup['now'], catchup['target'], catchup['slots'], catchup['lastReply']))),
 ]
 for filename, title, payload in requests:
     save(filename, payload)
@@ -137,11 +167,14 @@ for filename, title, payload in requests:
         assert json.loads(payload['messages'][1]['content'])['mutableFacts'] == []
 assert [m for m in requests[0][2]['messages'] if m['role'] != 'system'] == hist1
 assert [m for m in requests[2][2]['messages'] if m['role'] != 'system'] == hist2
-save('assumptions.json', dict(endpoint=endpoint, headers=headers, connection=connection, note='虚构演示配置。预设/共用规则/生活及整理指令读取当前源码；离线构造并归一化缩进，未运行Android组装器、未抓包、未请求模型。',
+assert [m for m in requests[4][2]['messages'] if m['role'] != 'system'] == hist2
+assert '{"catchUp":[{"slot":0,"text":"正文"}]' in requests[4][2]['messages'][-1]['content']
+save('assumptions.json', dict(endpoint=endpoint, headers=headers, connection=connection, note='虚构演示配置。预设/共用规则/生活、离线合并及整理指令读取当前源码；离线构造并归一化缩进，未运行Android组装器、未抓包、未请求模型。',
     card=card, userDescription=user_description, publicFact=public_fact, worldMap=world_map,
     background=background, schedule=schedule, responseProfile=dict(patienceMinutes=360, sensitivity=1.0, recoverySpeed=1.0),
     profileSource='card', extensions=[], attachments=[], mutableFacts=[], customRequestFields={},
-    conditions='会话已保存卡内开场白及游戏时间；App前台、两轮成功且无额外主动联系/工具/重试；无正则、无裁剪；心情与好感不变。',
+    conditions='会话已保存卡内开场白及游戏时间；App前台、两轮成功且无额外主动联系/工具/重试；无正则、无裁剪；心情与好感不变。03 为同一会话关闭约 59 分钟后重开：内存模拟收集两个联系时机（20:16、20:41），每个角色只发 1 次合并请求，不是逐时机请求。',
+    catchUp=catchup,
     sources={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in [PRESET, BOOK, RUNTIME, TURN]}))
 
 import runpy
