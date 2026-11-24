@@ -107,7 +107,8 @@ object RelationshipRules {
         if (oldWait != null) {
             if (delivery.startsContact) state = state.copy(waiting = oldWait.copy(
                 unansweredContacts = (oldWait.unansweredContacts + 1).coerceAtMost(1000)))
-        } else if (delivery.replyEvidence.isNotBlank() && delivery.replyEvidence in delivery.message.content) {
+        } else if (delivery.startsContact ||
+            (delivery.replyEvidence.isNotBlank() && evidenceMatches(delivery.replyEvidence, delivery.message.content))) {
             val expected = max(at + state.profile.patienceMinutes * GAME_MINUTE, state.absence?.returnsAt ?: at)
             state = state.copy(waiting = ReplyWait(delivery.sessionId, delivery.message.ts,
                 delivery.message.content.take(400), at, expected, if (delivery.proactive) 1 else 0,
@@ -159,6 +160,16 @@ object RelationshipRules {
         "recovering" -> "逐渐恢复"; else -> "正常"
     }
 
+    /** 明确的阶段口吻，避免模型把已结算的冷落又写成没事一样。 */
+    fun toneGuidance(stage: String): String = when (stage) {
+        "waiting" -> "正常等待回应；可自然问候一次，不连续催问，也不假装已经亲密如常。"
+        "uneasy" -> "有些不安；问候要收敛，可试探一次，不撒娇、不说重话，也不反复确认对方在不在。"
+        "irritated" -> "已经明显失落烦躁；回复更短更冷，避免亲昵称呼、撒娇和讨好，可就事论事，不反复追问。"
+        "distant" -> "处于疏远状态；非常简短、客气或冷淡，减少主动联系，不要假装没事或立刻恢复热情。"
+        "recovering" -> "情绪在缓解但没回到从前；可以接受互动，不必立刻恢复亲密，也不翻旧账。"
+        else -> "正常相处，可主动联系；没有被冷落。"
+    }
+
     fun summary(actor: LifeActor, at: Long): String = buildString {
         val s = actor.relationship
         appendLine("【当前关系与等待状态】")
@@ -176,6 +187,11 @@ object RelationshipRules {
             appendLine("用户告知的离开情况：${lifeJson.encodeToString(it.reason)}；预计返回：${it.returnsAt?.let(::gameLabel) ?: "未明确"}；原文依据：${lifeJson.encodeToString(it.evidence)}。")
         } ?: appendLine("用户没有告知有效的离开原因或返回时间；不要推断其原因。")
         if (s.latestChange.isNotBlank()) appendLine("最近变化（${s.latestChangeAt?.let(::gameLabel) ?: "当前"}）：${s.latestChange}")
+        s.waiting?.let { w ->
+            val hours = ((at - w.deliveredAt).coerceAtLeast(0)) / HOUR
+            if (hours > 0) appendLine("用户自这条消息送达后已连续 ${hours} 小时没有回复。")
+        }
+        appendLine("当前应表现：${toneGuidance(s.stage)}")
         append("按已保存状态表达，可不主动联系；用户回来不必立刻恢复，也不要重复责问。冷落变化已由程序结算，不要再次扣分。")
     }
 

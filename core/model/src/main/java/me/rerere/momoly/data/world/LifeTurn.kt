@@ -4,8 +4,11 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class LifeFactChange(val id: String, val content: String, val evidence: String)
 @Serializable data class AbsenceSuggestion(val reason: String = "", val returnsAt: String? = null, val evidence: String = "")
+/** 离线合并补发：slot 是本次请求里给出的联系时机序号，程序据此还原各自的世界时间。 */
+@Serializable data class LifeCatchUpMessage(val slot: Int = -1, val text: String = "")
 @Serializable data class LifeTurn(
-    val messages: List<String> = emptyList(), val mood: String? = null, val moodIntensity: Int? = null,
+    val messages: List<String> = emptyList(), val catchUp: List<LifeCatchUpMessage> = emptyList(),
+    val mood: String? = null, val moodIntensity: Int? = null,
     val affinityDelta: Int = 0, val reason: String = "", val evidence: String = "",
     val background: String? = null, val addSchedules: List<LifeSchedule> = emptyList(),
     val cancelSchedules: List<String> = emptyList(), val facts: List<LifeFactChange> = emptyList(),
@@ -17,6 +20,51 @@ import kotlinx.serialization.Serializable
     val anxietyDelta: Int = 0, val irritationDelta: Int = 0,
 )
 
+
+/** 容错读取：允许 ```json 围栏、前后多余文字与额外说明，避免格式小偏差拦掉整轮。 */
+fun parseLifeTurnText(raw: String): LifeTurn? {
+    val candidate = extractJsonObjectText(raw) ?: return null
+    return try { lifeJson.decodeFromString<LifeTurn>(candidate) } catch (_: Exception) { null }
+}
+
+private fun extractJsonObjectText(raw: String): String? {
+    val cleaned = raw.trim().removePrefix("```json").removePrefix("```")
+        .removeSuffix("```").trim()
+    if (cleaned.startsWith("{") && cleaned.endsWith("}")) return cleaned
+    val start = cleaned.indexOf('{')
+    val end = cleaned.lastIndexOf('}')
+    return if (start in 0 until end) cleaned.substring(start, end + 1) else null
+}
+
+/** 合并补齐的输出统一成（世界时间，正文）；slot 越界或缺失时按顺序摊到已有时机，最多 6 条。 */
+fun catchUpMessages(turn: LifeTurn, slots: List<Long>): List<Pair<Long, String>> {
+    if (slots.isEmpty()) return emptyList()
+    val raw = turn.catchUp.ifEmpty { turn.messages.mapIndexed { index, text -> LifeCatchUpMessage(index, text) } }
+    val items = raw.mapNotNull { item ->
+        val text = item.text.trim()
+        if (text.isBlank() || text.length > 4000) null else text to item.slot
+    }.take(6)
+    if (items.isEmpty()) return emptyList()
+    return items.mapIndexed { index, pair ->
+        val (text, slot) = pair
+        val target = if (slot in slots.indices) slot
+            else (index * slots.size / items.size).coerceIn(0, slots.lastIndex)
+        slots[target] to text
+    }.sortedBy { it.first }
+}
+
+/** 模型偶尔改写标点或空白；逐字依据按去空白/标点比较，避免有效变化被静默丢弃。 */
+fun evidenceMatches(evidence: String, text: String): Boolean {
+    if (evidence.isBlank() || text.isBlank()) return false
+    if (text.contains(evidence)) return true
+    val e = evidence.filterNot(::evidenceIgnorable)
+    val t = text.filterNot(::evidenceIgnorable)
+    return e.isNotEmpty() && t.contains(e)
+}
+
+private fun evidenceIgnorable(c: Char) =
+    c.isWhitespace() || c in "，。！？、；：“”‘’（）【】《》…—-,.!?;:\"'()[]{}"
+
 /** Only validated effects from actually delivered text enter world state. */
 fun applyLifeTurn(w: LifeWorld, file: String, turn: LifeTurn, inputText: String, delivered: String, event: String,
                   inputMessages: List<me.rerere.momoly.data.chat.ChatMessage> = emptyList()): LifeWorld {
@@ -27,7 +75,7 @@ fun applyLifeTurn(w: LifeWorld, file: String, turn: LifeTurn, inputText: String,
         if (before != after) changes += LifeRevision(event,w.now,file,field,before.toString(),after.toString(),reason)
     }
     val grounded = turn.reason.isNotBlank() && turn.evidence.isNotBlank() &&
-        (inputText.contains(turn.evidence) || delivered.contains(turn.evidence))
+        (evidenceMatches(turn.evidence, inputText) || evidenceMatches(turn.evidence, delivered))
     if (actor.initial.schedule.isEmpty() && actor.schedule.all { it.id=="autonomous" } &&
         turn.dailySchedules.isNotEmpty() && turn.dailySchedules.all { it.date.isBlank() } &&
         runCatching { validateSchedules(turn.dailySchedules,w.map) }.isSuccess) {
@@ -46,7 +94,7 @@ fun applyLifeTurn(w: LifeWorld, file: String, turn: LifeTurn, inputText: String,
         actor = actor.copy(affinity=affinity,mood=mood,moodIntensity=intensity,background=background)
         // Dated appointments require explicit agreement in both sides of this delivered exchange.
         if (inputText.isNotBlank() && turn.agreementEvidence.isNotBlank() &&
-            turn.agreementEvidence in delivered && turn.evidence in inputText) {
+            evidenceMatches(turn.agreementEvidence, delivered) && evidenceMatches(turn.evidence, inputText)) {
             val added = turn.addSchedules.filter { s ->
                 s.date.isNotBlank() && runCatching { gameTime("${s.date}T00:00:00") + s.start * GAME_MINUTE >= w.now }.getOrDefault(false) &&
                     actor.schedule.none { old -> old.fixed && (old.date.isBlank() || old.date==s.date) && old.start<s.end && s.start<old.end }
@@ -72,7 +120,7 @@ fun applyLifeTurn(w: LifeWorld, file: String, turn: LifeTurn, inputText: String,
             ?: relationship.lastUserMessageTs.takeIf { inputMessages.isEmpty() }
         val returnsAt = absence.returnsAt?.let { runCatching { gameTime(it) }.getOrNull() }
         if (source != null && source > 0 && absence.reason.isNotBlank() && absence.reason.length <= 200 &&
-            absence.evidence.isNotBlank() && absence.evidence.length <= 400 && absence.evidence in inputText &&
+            absence.evidence.isNotBlank() && absence.evidence.length <= 400 && evidenceMatches(absence.evidence, inputText) &&
             (absence.returnsAt == null || (returnsAt != null && returnsAt > w.now && returnsAt <= w.now + 30L*1440*GAME_MINUTE))) {
             val known = KnownAbsence(absence.reason, returnsAt, source, absence.evidence)
             record("absence", relationship.absence, known, "用户已告知：${absence.evidence}")
@@ -80,7 +128,7 @@ fun applyLifeTurn(w: LifeWorld, file: String, turn: LifeTurn, inputText: String,
                 waiting = relationship.waiting?.let { it.copy(expectedReplyAt = maxOf(it.expectedReplyAt, returnsAt ?: it.expectedReplyAt)) })
         }
     }
-    if (grounded && turn.evidence in inputText && relationship.lastUserMessageTs > relationship.lastAssessedInput) {
+    if (grounded && evidenceMatches(turn.evidence, inputText) && relationship.lastUserMessageTs > relationship.lastAssessedInput) {
         fun change(value: Double, delta: Int): Double {
             val bounded = delta.coerceIn(-10, 10)
             return (value + bounded * if(bounded < 0) relationship.profile.recoverySpeed else 1.0).coerceIn(0.0, 100.0)
@@ -101,7 +149,7 @@ fun applyLifeTurn(w: LifeWorld, file: String, turn: LifeTurn, inputText: String,
     val facts = w.facts.map { old ->
         val change = turn.facts.firstOrNull { it.id == old.id }
         if (old.mutable && old.binding.isBlank() && old.scope == file && change != null && change.content.length <= 2000 &&
-            change.evidence.isNotBlank() && change.evidence in delivered) {
+            change.evidence.isNotBlank() && evidenceMatches(change.evidence, delivered)) {
             record("fact:${old.id}",old.content,change.content,change.evidence)
             old.copy(content=change.content,source=event,revision=old.revision+1)
         } else old

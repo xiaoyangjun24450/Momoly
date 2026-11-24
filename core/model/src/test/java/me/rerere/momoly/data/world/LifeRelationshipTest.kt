@@ -18,15 +18,30 @@ class LifeRelationshipTest {
     private fun waiting(a: LifeActor = actor) = RelationshipRules.delivered(world(a), delivery(), start)
     private fun LifeWorld.a() = actors.getValue("a")
 
-    @Test fun onlyDeliveredEvidenceStartsWaitingAndFollowupsKeepOriginalDeadline() {
-        assertNull(RelationshipRules.delivered(world(),delivery(evidence="虚构"),start).a().relationship.waiting)
-        assertNull(RelationshipRules.delivered(world(),delivery(evidence=""),start).a().relationship.waiting)
+    @Test fun proactiveContactStartsSilenceClockAndFollowupsKeepOriginalDeadline() {
+        // 主动联系本身就算一次未获回应的搭话，不要求模型声明“需要回复”。
+        assertNotNull(RelationshipRules.delivered(world(),delivery(evidence=""),start).a().relationship.waiting)
+        assertNotNull(RelationshipRules.delivered(world(),delivery(evidence="虚构"),start).a().relationship.waiting)
         val first = waiting()
         val second = RelationshipRules.delivered(first,delivery(101),start+hour)
         assertEquals(start,second.a().relationship.waiting!!.deliveredAt)
         assertEquals(start+6*hour,second.a().relationship.waiting!!.expectedReplyAt)
         assertEquals(2,second.a().relationship.waiting!!.unansweredContacts)
         assertTrue(second.a().relationship.contactFactor < first.a().relationship.contactFactor)
+        // 普通回复且没有需要回应的原文，不单独开始等待。
+        val plain=delivery(evidence="").copy(startsContact=false,proactive=false)
+        assertNull(RelationshipRules.delivered(world(),plain,start).a().relationship.waiting)
+    }
+
+    @Test fun longSilenceAfterProactiveContactTurnsColdAndSuppressesContacts() {
+        val w=RelationshipRules.advance(RelationshipRules.delivered(world(),delivery(evidence=""),start),start+72*hour)
+        assertEquals("distant",w.a().relationship.stage)
+        assertTrue("affinity=${w.a().affinity}",w.a().affinity<80)
+        assertTrue("factor=${w.a().relationship.contactFactor}",w.a().relationship.contactFactor<=0.1)
+        val prompt=RelationshipRules.summary(w.a(),start+72*hour)
+        assertTrue(prompt, prompt.contains("疏远") || prompt.contains("冷淡"))
+        assertTrue(prompt, prompt.contains("连续 72 小时没有回复"))
+        assertTrue(w.a().mood.contains("疏远") || w.a().mood.contains("失落"))
     }
 
     @Test fun historicalMessagesStartAtActualDeliveryRatherThanStoryTime() {
