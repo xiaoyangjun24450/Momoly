@@ -26,6 +26,11 @@ import kotlin.random.Random
 internal data class LifeRuntimeStatus(val working: Boolean = false, val paused: Boolean = false,
     val error: String? = null, val activeCharacter: String = "")
 
+/** 离线补齐合并：同一角色整段离线只发一次请求，而不是每个联系机会各发一次。 */
+private const val CATCH_UP_THRESHOLD = 5 * GAME_MINUTE
+private const val KEY_CARD_SIGNATURE = "card_signature"
+private const val KEY_RECOVER_SESSION = "recover_session"
+
 /** Foreground event pump. All state commits use the store's single writer; no Android background service. */
 internal class WorldLifeRuntime(
     private val context: Context, private val repository: ChatDataRepository,
@@ -46,10 +51,14 @@ internal class WorldLifeRuntime(
     private val mutableStatus = MutableStateFlow(LifeRuntimeStatus())
     val status = mutableStatus.asStateFlow()
     val worlds get() = WorldLifeStore.observe(context)
+    private val prefs get() = context.getSharedPreferences("world_life_runtime", Context.MODE_PRIVATE)
+    private var lastTickWall = 0L
 
     fun foreground(value: Boolean) {
         foreground = value
         if (!value) { epoch++; loop?.cancel(); loop=null; generationJob?.cancel(); return }
+        // 回到前台先立即校准一次世界钟点，不沿用后台前的节流时间。
+        lastTickWall=0
         start()
     }
     suspend fun close() {
@@ -64,7 +73,13 @@ internal class WorldLifeRuntime(
                 syncCards()
                 var rounds = 0
                 while (isActive && foreground) {
-                    WorldLifeStore.tick(context,wallClock())
+                    // 世界钟点只需分钟级刷新。每秒 tick 会把整份存档写盘并让聊天页整页重组，
+                    // 表现为重进和滚动时持续卡顿；这里限制为一分钟一次，进入/提交时仍会立即校准。
+                    val wall=wallClock()
+                    if (wall-lastTickWall>=60_000L) {
+                        WorldLifeStore.tick(context,wall)
+                        lastTickWall=wall
+                    }
                     if (!mutableStatus.value.paused) {
                         var progressed = false
                         supervisorScope {
@@ -74,7 +89,8 @@ internal class WorldLifeRuntime(
                         }
                         if (progressed) {
                             rounds++
-                            if (rounds >= 12 && backlogMinutes() > 60) {
+                            // 合并补齐后正常只需少量轮次；这里只防异常循环，不再按 12 个事件打断用户。
+                            if (rounds >= 24 && backlogMinutes() > 60) {
                                 mutableStatus.value = mutableStatus.value.copy(paused=true,working=false,
                                     error="已处理一批离线事件，剩余时间已保存。继续即可接着补齐。")
                             }
@@ -122,10 +138,19 @@ internal class WorldLifeRuntime(
         }
     }
 
+    /** 角色卡文件签名；未改动的启动不再把每张卡和每段聊天重新读一遍。 */
+    private fun cardSignature(): String =
+        CharacterRepository.charsDir(context).listFiles().orEmpty()
+            .filter { it.extension == "json" }.sortedBy(File::getName)
+            .joinToString("\n") { "${it.name}:${it.length()}:${it.lastModified()}" }
+
     suspend fun syncCards() {
         if (syncing) return
         syncing=true
         try { withContext(Dispatchers.IO) {
+            recoverPendingInput()
+            val signature=cardSignature()
+            if (prefs.getString(KEY_CARD_SIGNATURE,null)==signature) return@withContext
             val files=CharacterRepository.charsDir(context).listFiles().orEmpty().filter { it.extension=="json" }
             val valid=mutableSetOf<String>()
             files.forEach { f ->
@@ -145,24 +170,28 @@ internal class WorldLifeRuntime(
             WorldLifeStore.update(context) { u -> u.copy(worlds=u.worlds.mapValues { (_,w) ->
                 w.copy(actors=w.actors.filterKeys { it in valid })
             }) }
-            // Recover input saved just before a process death, before its pending marker was committed.
-            repository.listSummaries().filter { it.charFile in valid }.forEach { summary ->
-                val session=repository.get(summary.id) ?: return@forEach
-                val last=session.messages.lastOrNull { it.role=="user" } ?: return@forEach
-                val world=WorldLifeStore.read(context).worlds.values.first { summary.charFile in it.actors }
-                WorldLifeStore.world(context,world.name) { w ->
-                    val a=w.actors.getValue(summary.charFile)
-                    if(last.ts<=a.pendingInput || last.ts<=a.answeredInput) w else {
-                        val receivedAt=w.messageTimes["${session.id}:${last.ts}"] ?: w.target
-                        val received=RelationshipRules.received(w,a.file,last.ts,receivedAt)
-                        received.copy(actors=received.actors+(a.file to received.actors.getValue(a.file).copy(
-                            sessionId=session.id,pendingInput=last.ts,pendingAt=receivedAt,inputReadyAt=0)))
-                    }
-                }
-            }
+            prefs.edit().putString(KEY_CARD_SIGNATURE,signature).apply()
             val selected=context.getSharedPreferences("home_world",Context.MODE_PRIVATE).getString("selected_name",null)
             if (selected != null && WorldLifeStore.read(context).active != selected) WorldLifeStore.select(context,selected,wallClock())
         } } finally { syncing=false }
+    }
+
+    /** 只在提交用户消息的瞬间崩溃过才扫描会话；平时用单条查询恢复，不加载整段历史。 */
+    private suspend fun recoverPendingInput() {
+        val sessionId=prefs.getString(KEY_RECOVER_SESSION,null) ?: return
+        prefs.edit().remove(KEY_RECOVER_SESSION).apply()
+        val session=repository.getMetadata(sessionId) ?: return
+        val lastTs=repository.lastUserMessageTimestamp(sessionId) ?: return
+        val world=WorldLifeStore.read(context).worlds.values.firstOrNull { session.charFile in it.actors } ?: return
+        WorldLifeStore.world(context,world.name) { w ->
+            val a=w.actors.getValue(session.charFile)
+            if(lastTs<=a.pendingInput || lastTs<=a.answeredInput) w else {
+                val receivedAt=w.messageTimes["${session.id}:$lastTs"] ?: w.target
+                val received=RelationshipRules.received(w,a.file,lastTs,receivedAt)
+                received.copy(actors=received.actors+(a.file to received.actors.getValue(a.file).copy(
+                    sessionId=session.id,pendingInput=lastTs,pendingAt=receivedAt,inputReadyAt=0)))
+            }
+        }
     }
 
     override fun submit(sessionId: String, card: CharacterCard?, provider: ApiProvider, modelId: String,
@@ -180,6 +209,8 @@ internal class WorldLifeRuntime(
         scope.launch {
             try {
                 syncCards()
+                // 先落标记再写消息：提交途中被杀时，下次启动能准确定位这条输入。
+                prefs.edit().putString(KEY_RECOVER_SESSION,sessionId).apply()
                 if (!appendInput()) return@launch
                 val session=repository.get(sessionId) ?: return@launch
                 val input=session.messages.lastOrNull { it.role=="user" } ?: return@launch
@@ -195,7 +226,10 @@ internal class WorldLifeRuntime(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 mutableStatus.value=mutableStatus.value.copy(paused=true,error=e.message)
-            } finally { pendingSends--;wake.trySend(Unit);start() }
+            } finally {
+                prefs.edit().remove(KEY_RECOVER_SESSION).apply()
+                pendingSends--;wake.trySend(Unit);start()
+            }
         }
         return true
     }
@@ -213,30 +247,59 @@ internal class WorldLifeRuntime(
             }
         }
     }
+    /** 只在 DEBUG 落盘，便于追查“更新不成功”而不是把内部格式错误展示给用户。 */
+    private suspend fun debugLog(name: String, detail: String) {
+        if(!me.rerere.momoly.BuildConfig.DEBUG) return
+        withContext(Dispatchers.IO) {
+            runCatching { File(context.cacheDir,"life-$name.txt").writeText(detail.take(32_000)) }
+        }
+    }
+
+    private suspend fun projectFacts(w: LifeWorld) {
+        if(projectedFacts[w.name]==w.facts.hashCode()) return
+        for(actor in w.actors.values) {
+            val card=CharacterRepository.load(context,actor.file)
+            for(id in card.enabledWorldBookIds) {
+                val book=WorldBookRepository.loadById(context,id)
+                WorldBookRepository.projectLifeFacts(context,book.name,w.facts.filter { it.scope in listOf("public",actor.file) })
+            }
+        }
+        projectedFacts[w.name]=w.facts.hashCode()
+    }
+
     private suspend fun step(): Boolean {
         if(pendingSends>0) return false
         val u=WorldLifeStore.read(context)
         var w=u.worlds[u.active] ?: return false
         flush(w)
         w=WorldLifeStore.read(context).worlds.getValue(w.name)
-        if(projectedFacts[w.name]!=w.facts.hashCode()) {
-            for(actor in w.actors.values) {
-                val card=CharacterRepository.load(context,actor.file)
-                for(id in card.enabledWorldBookIds) {
-                    val book=WorldBookRepository.loadById(context,id)
-                    WorldBookRepository.projectLifeFacts(context,book.name,w.facts.filter { it.scope in listOf("public",actor.file) })
-                }
-            }
-            projectedFacts[w.name]=w.facts.hashCode()
-        }
-        val ready=w.actors.values.firstOrNull { a ->
-            val pending=a.pendingInput>a.answeredInput && a.inputReadyAt<=System.currentTimeMillis() &&
+        val reply=w.actors.values.firstOrNull { a ->
+            a.pendingInput>a.answeredInput && a.inputReadyAt<=System.currentTimeMillis() &&
                 LifeRules.inputIsDue(w,a)
-            pending || a.nextContact<=w.now
         }
+        if (reply != null) {
+            projectFacts(w)
+            mutableStatus.value=mutableStatus.value.copy(working=true,activeCharacter=reply.name,error=null)
+            respond(w,reply)
+            mutableStatus.value=mutableStatus.value.copy(working=false,activeCharacter="")
+            return true
+        }
+        val pendingInputs=w.actors.values.filter { it.pendingInput>it.answeredInput }
+        if (pendingInputs.isNotEmpty()) {
+            // 回复还没到它自己的时刻，或仍在 3 秒输入收集窗口内：先别补发主动联系，保证顺序。
+            if (pendingInputs.any { !LifeRules.inputIsDue(w,it) } && w.now<w.target) {
+                val next=LifeRules.nextBoundary(w)
+                WorldLifeStore.world(context,w.name) { current -> LifeRules.advance(current,next) }
+                yield()
+            } else delay(100)
+            return false
+        }
+        // 积压超过阈值时整段合并补齐：通常零次或每角色一次请求，不再逐联系机会发。
+        if (w.target-w.now > CATCH_UP_THRESHOLD) return catchUp(w)
+        projectFacts(w)
+        val ready=w.actors.values.firstOrNull { it.nextContact<=w.now }
         if (ready != null) {
-            val replying=ready.pendingInput>ready.answeredInput && LifeRules.inputIsDue(w,ready)
-            if(!replying && !RelationshipRules.allowsContact(ready,w.now)) {
+            if(!RelationshipRules.allowsContact(ready,w.now)) {
                 WorldLifeStore.world(context,w.name) { current ->
                     val actor=current.actors.getValue(ready.file)
                     current.copy(actors=current.actors+(ready.file to actor.copy(nextContact=LifeRules.nextContact(actor,current.now))))
@@ -259,27 +322,18 @@ internal class WorldLifeRuntime(
         return false
     }
 
-    private fun model(): Pair<ApiProvider,String> {
-        val config=api.load()
-        val (provider, model) = config.chatModelSelection()
-            ?: error("请先在 API 配置中连接并选择聊天模型，世界进度与待回复内容已保存。")
-        return provider to model.id
-    }
+    private data class LifeRequest(
+        val card: CharacterCard, val session: ChatSession, val provider: ApiProvider, val model: String,
+        val apiMessages: List<ApiMessage>, val genParams: GenParams?,
+        val history: List<ChatMessage>, val datedHistory: List<ChatMessage>,
+    )
 
-    private suspend fun session(w: LifeWorld, a: LifeActor, card: CharacterCard): ChatSession {
-        val session=me.rerere.momoly.domain.chat.ChatSessionCoordinator(repository).forCharacter(card,a.file,a.name)
-        WorldLifeStore.world(context,w.name) { current -> current.copy(actors=current.actors +
-            (a.file to current.actors.getValue(a.file).copy(sessionId=session.id))) }
-        return session
-    }
-    private suspend fun respond(w: LifeWorld, a: LifeActor) {
-        val revision=epoch
+    private suspend fun buildRequest(w: LifeWorld,a: LifeActor,isReply: Boolean): LifeRequest {
         val loaded=PromptContextLoader.load(context,a.file)
         require(loaded.failures.isEmpty()) { "角色关联资源读取失败，进度已保留。" }
         val card=requireNotNull(loaded.card)
         val session=session(w,a,card)
         val (provider,model)=model()
-        val isReply=a.pendingInput>a.answeredInput && LifeRules.inputIsDue(w,a)
         // Committed messages remain history when the phone's clock or time zone changes.
         val history=session.messages.filterNot { it.isHidden }
         val datedHistory=history.map { message ->
@@ -310,28 +364,147 @@ internal class WorldLifeRuntime(
             updateTimed=false,reasoning=ReasoningLevel.AUTO,modelId=model,
             generationMessage=ChatMessage("assistant"),commitVariables=false,
         ))
+        return LifeRequest(card,session,provider,model,assembled.apiMessages,assembled.built.genParams,history,datedHistory)
+    }
+
+    /** 整段离线只请求一次；模型可以只在部分时机留言或全部跳过。 */
+    private suspend fun catchUp(w: LifeWorld): Boolean {
+        val plan=LifeCatchUp.plan(w)
+        val sim=plan.world
+        val slots=plan.slots
+        val revision=epoch
+        data class Prepared(val file: String,val sessionId: String,val turn: LifeTurn,
+            val messages: List<Pair<Long,String>>,val modelLabel: String)
+        val prepared=mutableListOf<Prepared>()
+        try {
+            if (slots.isNotEmpty()) {
+                for((file,allTimes) in slots.entries.sortedBy { it.value.first() }) {
+                    val actor=sim.actors[file] ?: continue
+                    val times=LifeCatchUp.sampleSlots(allTimes)
+                    mutableStatus.value=mutableStatus.value.copy(working=true,activeCharacter=actor.name,error=null)
+                    val ctx=buildRequest(w,actor,isReply=false)
+                    val turn=catchUpTurn(ctx,w,actor,times,revision)
+                    val messages=catchUpMessages(turn,times)
+                    if(messages.isNotEmpty()) prepared += Prepared(file,ctx.session.id,turn,messages,
+                        "${ctx.provider.name}/${ctx.model}")
+                }
+            }
+        } finally {
+            mutableStatus.value=mutableStatus.value.copy(working=false,activeCharacter="")
+        }
+        if (revision!=epoch) return true
+        data class Pack(val file: String,val sessionId: String,val turn: LifeTurn,
+            val deliveries: List<LifeDelivery>,val times: Map<String,Long>,val delivered: String)
+        val packs=prepared.map { item ->
+            val baseTs=maxOf(System.currentTimeMillis(),
+                (repository.getMetadata(item.sessionId)?.messageTimestamps?.lastOrNull() ?: 0)+1)
+            val deliveries=mutableListOf<LifeDelivery>()
+            val times=mutableMapOf<String,Long>()
+            var lastSlot: Long?=null
+            var ts=baseTs
+            // 和普通回复一样按句拆成气泡；同一条合并留言只算一次主动联系。
+            val bubbles=item.messages.flatMap { (slotTime,text) ->
+                ChatReplyText.split(text).filter(String::isNotBlank).map { slotTime to it }
+            }.take(8)
+            for((slotTime,text) in bubbles) {
+                val startsContact=slotTime!=lastSlot
+                lastSlot=slotTime
+                deliveries += LifeDelivery(item.sessionId,ChatMessage(role="assistant",content=text,
+                    model=item.modelLabel,ts=ts),slotTime,
+                    replyEvidence=item.turn.replyEvidence.takeIf { it.isNotBlank() && evidenceMatches(it,text) }.orEmpty(),
+                    startsContact=startsContact,proactive=true)
+                times["${item.sessionId}:$ts"]=slotTime
+                ts++
+            }
+            Pack(item.file,item.sessionId,item.turn,deliveries,times,item.messages.joinToString("\n") { it.second })
+        }
+        WorldLifeStore.update(context) { universe ->
+            if (universe.worlds[w.name]==null) return@update universe
+            var world=sim
+            for(pack in packs) {
+                world=world.copy(sequence=world.sequence+pack.deliveries.size,
+                    messageTimes=world.messageTimes+pack.times,outbox=world.outbox+pack.deliveries)
+                world=applyLifeTurn(world,pack.file,
+                    pack.turn.copy(messages=emptyList(),catchUp=emptyList()),"",pack.delivered,
+                    "${w.name}:catchup:${w.target}:${pack.file}")
+                val actor=world.actors.getValue(pack.file)
+                world=world.copy(actors=world.actors+(pack.file to actor.copy(
+                    sessionId=pack.sessionId,unread=actor.unread+pack.deliveries.size)))
+            }
+            universe.copy(worlds=universe.worlds+(w.name to world))
+        }
+        flush(WorldLifeStore.read(context).worlds.getValue(w.name))
+        projectFacts(WorldLifeStore.read(context).worlds.getValue(w.name))
+        return true
+    }
+
+    private suspend fun catchUpTurn(ctx: LifeRequest,w: LifeWorld,a: LifeActor,slots: List<Long>,revision: Long): LifeTurn {
+        val buffer=StringBuilder()
+        gateway.stream(GenerationStreamRequest(ctx.provider.id,ctx.model,
+            ctx.apiMessages + ApiMessage("system",catchUpPrompt(w,a,slots)),
+            ctx.genParams,emptyList(),{ revision!=epoch || !foreground },allowFallback=true)) { event ->
+            if (event is GenerationEvent.ContentDelta) buffer.append(event.content)
+        }
+        currentCoroutineContext().ensureActive()
+        if (revision!=epoch) throw CancellationException("世界已切换")
+        val raw=buffer.toString().trim()
+        val parsed=parseLifeTurnText(raw)
+        if (parsed!=null) return parsed
+        // 只写了正文也接受：落到最近一个时机，不再额外请求状态整理。
+        require(raw.isNotBlank() && !raw.startsWith('{') && !raw.startsWith('[')) { "补发留言生成失败，进度已保存；请重试。" }
+        return LifeTurn(catchUp=listOf(LifeCatchUpMessage(slots.lastIndex,raw)))
+    }
+
+    private fun model(): Pair<ApiProvider,String> {
+        val config=api.load()
+        val (provider, model) = config.chatModelSelection()
+            ?: error("请先在 API 配置中连接并选择聊天模型，世界进度与待回复内容已保存。")
+        return provider to model.id
+    }
+
+    private suspend fun session(w: LifeWorld, a: LifeActor, card: CharacterCard): ChatSession {
+        val session=me.rerere.momoly.domain.chat.ChatSessionCoordinator(repository).forCharacter(card,a.file,a.name)
+        WorldLifeStore.world(context,w.name) { current -> current.copy(actors=current.actors +
+            (a.file to current.actors.getValue(a.file).copy(sessionId=session.id))) }
+        return session
+    }
+    private suspend fun respond(w: LifeWorld, a: LifeActor) {
+        val revision=epoch
+        val isReply=a.pendingInput>a.answeredInput && LifeRules.inputIsDue(w,a)
+        val request=buildRequest(w,a,isReply)
+        val session=request.session
+        val history=request.history
+        val inputText=history.filter { it.role=="user" && it.ts>a.answeredInput }.joinToString("\n") { it.content }
         val prompt=lifePrompt(w,a,isReply)
         val buffer=StringBuilder()
-        gateway.stream(GenerationStreamRequest(provider.id,model,assembled.apiMessages + ApiMessage("system",prompt),
-            assembled.built.genParams,emptyList(),{ revision!=epoch || !foreground },allowFallback=true)) { event ->
+        gateway.stream(GenerationStreamRequest(request.provider.id,request.model,
+            request.apiMessages + ApiMessage("system",prompt),
+            request.genParams,emptyList(),{ revision!=epoch || !foreground },allowFallback=true)) { event ->
             if (event is GenerationEvent.ContentDelta) buffer.append(event.content)
         }
         currentCoroutineContext().ensureActive()
         if (revision!=epoch) return
-        val raw=buffer.toString().trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-        val inputText=history.filter { it.role=="user" && it.ts>a.answeredInput }.joinToString("\n") { it.content }
-        val turn=try { lifeJson.decodeFromString<LifeTurn>(raw) } catch (_: Exception) {
-            // Some roleplay presets insist on prose-only output. Keep their voice and obtain effects
-            // in a separate neutral request, without injecting those contradictory preset rules.
+        val raw=buffer.toString().trim()
+        val parsed=parseLifeTurnText(raw)
+        val turn=if (parsed!=null) parsed else {
+            // Some roleplay presets insist on prose-only output. Keep their voice and try to obtain
+            // effects in a separate neutral request; a state failure must not swallow the reply.
             require(raw.isNotBlank() && !raw.startsWith('{') && !raw.startsWith('[')) { context.getString(me.rerere.momoly.R.string.character_card_incomplete) }
-            assessPlainReply(provider,model,w,a,card,inputText,raw,revision).copy(messages=listOf(raw))
+            val assessed=try {
+                assessPlainReply(request.provider,request.model,w,a,request.card,inputText,raw,revision)
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                debugLog("state-assessment-failed",error.message ?: error.toString())
+                LifeTurn()
+            }
+            assessed.copy(messages=if(assessed.messages.isEmpty()) listOf(raw) else assessed.messages)
         }
         require(turn.messages.size<=20 && turn.messages.all { it.length<=4000 }) { "角色单次留言过长，未发布；请重试。" }
         val parts=turn.messages.flatMap { ChatReplyText.split(it) }.filter(String::isNotBlank)
         if (isReply) require(parts.isNotEmpty()) { "角色未返回回复内容，待答消息已保留。" }
         // 分段显示会去掉句尾标点，先验证模型确实引用了原文，再与同样分段后的实际正文匹配。
         val replyEvidence=turn.replyEvidence.takeIf { evidence ->
-            turn.expectsReply && evidence.isNotBlank() && evidence.length<=400 && turn.messages.any { evidence in it }
+            turn.expectsReply && evidence.isNotBlank() && evidence.length<=400 && turn.messages.any { evidenceMatches(evidence,it) }
         }?.let { ChatReplyText.split(it).lastOrNull() }.orEmpty()
         val historical=w.target-w.now>5*GAME_MINUTE
         if (parts.isEmpty()) {
@@ -351,7 +524,7 @@ internal class WorldLifeRuntime(
                 if (revision!=epoch || latest.active!=w.name) return
                 val metadata=repository.getMetadata(session.id) ?: return
                 val ts=maxOf(System.currentTimeMillis(),(metadata.messageTimestamps.lastOrNull() ?: 0)+1)
-                val message=ChatMessage(role="assistant",content=text,model="${provider.name}/$model",ts=ts)
+                val message=ChatMessage(role="assistant",content=text,model="${request.provider.name}/${request.model}",ts=ts)
                 delivered += text + "\n"
                 val published=withContext(NonCancellable) {
                     if(revision!=epoch || WorldLifeStore.read(context).active!=w.name) return@withContext false
@@ -411,17 +584,29 @@ internal class WorldLifeRuntime(
         """.trimIndent()
         val output=StringBuilder()
         gateway.stream(GenerationStreamRequest(provider.id,model,listOf(ApiMessage("system",instruction),ApiMessage("user",content)),
-            GenParams(temperature=.1f,maxTokens=2048),emptyList(),{revision!=epoch || !foreground},allowFallback=true)) {
+            GenParams(temperature=.1f,maxTokens=4096),emptyList(),{revision!=epoch || !foreground},allowFallback=true)) {
             if(it is GenerationEvent.ContentDelta) output.append(it.content)
         }
-        val json=output.toString().trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-        return try { lifeJson.decodeFromString<LifeTurn>(json) } catch (_: Exception) {
-            if(me.rerere.momoly.BuildConfig.DEBUG) withContext(Dispatchers.IO) {
-                File(context.cacheDir,"life-invalid-response.txt").writeText(output.toString().take(32000))
-            }
-            error("角色状态整理失败，消息尚未发布，进度已保存；可以重试。")
-        }
+        val turn=parseLifeTurnText(output.toString())
+        if(turn!=null) return turn
+        debugLog("state-assessment-invalid",output.toString().take(4000))
+        throw IllegalStateException("角色状态整理失败，消息仍会发布。")
     }
+
+    /** 离线合并补发：一次请求覆盖整段离开时间，按给出的时机编号还原各自世界时间。 */
+    private fun catchUpPrompt(w: LifeWorld,a: LifeActor,slots: List<Long>) = """
+        这是手机上的角色私聊。你扮演角色本人，只写会显示在聊天气泡里的正文，不写动作、旁白、内心独白或用户台词。
+        用户暂时没有回复；世界时间从 ${gameLabel(w.now)} 推进到 ${gameLabel(w.target)}。你在下面这些时机本来可以主动联系：
+        ${slots.withIndex().joinToString("；") { (index,at) -> "[$index] ${gameLabel(at)}" }}
+        只为仍有必要的时机留言：通常 1—3 条，最多 4 条；没有值得说的就返回空数组，不要每条都问候，也不要重复说过的话。
+        以当时的世界时间和自身处境书写，不猜测用户之后的行为。不要提到“补发”“离线”“你终于上线了”，不写用户离开多久。
+        世界：${w.name}。${LifeRules.situation(w,a)}
+        ${RelationshipRules.summary(a,w.now)}
+        ${if(a.relationship.profileSource=="default") "人物反应参数尚未初始化，可根据原人物设定返回一次 responseProfile；缺少明确倾向时使用中性默认。" else "人物反应参数已固定。"}
+        只返回一个 JSON 对象，不要 Markdown，不要解释：
+        {"catchUp":[{"slot":0,"text":"正文"}],"responseProfile":{"patienceMinutes":360,"sensitivity":1.0,"recoverySpeed":1.0},"reason":"可选","evidence":"可选"}
+        其余字段可省略；不要返回 messages 字段，也不要修改世界、地图或公共事实。
+    """.trimIndent()
 
     private fun lifePrompt(w: LifeWorld,a: LifeActor,isReply: Boolean) = """
         这是手机上的角色私聊。使用角色的口吻，messages 数组内只放能显示在聊天气泡里的正文，不写动作、旁白、用户台词。JSON 外壳由程序处理，不会发给用户。

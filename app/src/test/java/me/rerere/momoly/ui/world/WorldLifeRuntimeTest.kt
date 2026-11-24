@@ -57,6 +57,7 @@ class WorldLifeRuntimeTest {
         WorldLifeStore.forgetCacheForTests()
         repo.listSummaries().forEach { repo.delete(it.id) }
         context.getSharedPreferences("home_world",0).edit().clear().commit()
+        context.getSharedPreferences("world_life_runtime",0).edit().clear().commit()
         val root=generateSequence(File(checkNotNull(System.getProperty("user.dir")))) { it.parentFile }
             .first { File(it,"artifacts/phase-02/夏以昼-阶段二.png").isFile }
         CharacterRepository.import(context,Uri.fromFile(File(root,"artifacts/phase-02/夏以昼-阶段二.png")))
@@ -75,6 +76,12 @@ class WorldLifeRuntimeTest {
         catch (e:TimeoutCancellationException) {
             val w=WorldLifeStore.read(context).worlds.values.firstOrNull()
             throw AssertionError("status=${runtime?.status?.value}; time=${w?.now}/${w?.target}; actors=${w?.actors?.values?.map{Triple(it.pendingInput,it.answeredInput,it.activeSchedule)}}",e)
+        }
+    }
+
+    private suspend fun waitForMessage(sessionId: String, predicate: (ChatMessage)->Boolean) {
+        withTimeout(15_000) {
+            while(repo.get(sessionId)?.messages?.any(predicate)!=true) delay(20)
         }
     }
 
@@ -124,15 +131,16 @@ class WorldLifeRuntimeTest {
         assertFalse(r.status.value.error.orEmpty(),r.status.value.paused)
         val sessions=repo.listSummaries();assertEquals(1,sessions.size)
         val messages=repo.get(sessions.single().id)!!.messages
-        assertTrue("messages=${messages.map{it.content}} prompts=${prompts.size} status=${r.status.value}",messages.size>=3)
+        assertTrue("messages=${messages.map{it.content}} prompts=${prompts.size} status=${r.status.value}",messages.size>=2)
         assertTrue(messages.none { it.role=="user" })
         val w=WorldLifeStore.read(context).worlds.values.single()
         assertTrue(w.outbox.isEmpty())
         val times=messages.mapNotNull { w.messageTimes["${sessions.single().id}:${it.ts}"] }
-        assertTrue(times.size>=3);assertTrue(times.distinct().size>=2)
+        assertTrue(times.size>=2);assertTrue(times.distinct().size>=2)
         assertEquals(messages.size,messages.map { it.ts }.distinct().size)
-        assertTrue(prompts.size>=2)
-        assertTrue(prompts.all { it.contains("没有新的用户消息") && !it.contains("用户正在休息") })
+        // 整段离线合并成一次请求，不再每个联系机会各发一次。
+        assertEquals(1,prompts.size)
+        assertTrue(prompts.all { it.contains("暂时没有回复") && "catchUp" in it })
         assertTrue(w.facts.any { it.revision>0 })
     }
     @Test fun proseOnlyPresetUsesSeparateStateAssessmentBeforePublishing()=runBlocking {
@@ -143,8 +151,17 @@ class WorldLifeRuntimeTest {
                 """{"mood":"轻松","moodIntensity":35,"reason":"已交接完任务","evidence":"交接好了"}""" else "交接好了，等我回去。"))
             StreamEnd()
         })
-        r.foreground(true);elapse(60)
-        waitFor { caughtUp() }
+        val w=WorldLifeStore.read(context).worlds.values.single();val a=w.actors.values.single()
+        val card=CharacterRepository.load(context,a.file)
+        val session=me.rerere.momoly.domain.chat.ChatSessionCoordinator(repo).forCharacter(card,a.file,a.name)
+        val input=ChatMessage("user","交接好了吗",ts=System.currentTimeMillis())
+        r.foreground(true)
+        r.submit(session.id,card,config.load().providers.single(),"test") { repo.putMessage(session.id,input);true }
+        waitFor { WorldLifeStore.read(context).worlds.values.single().actors.values.single().relationship.lastUserMessageTs==input.ts }
+        WorldLifeStore.world(context,w.name) { current -> val ready=current.actors.getValue(a.file)
+            current.copy(actors=current.actors+(a.file to ready.copy(inputReadyAt=0))) }
+        r.resume()
+        waitForMessage(session.id) { it.content=="等我回去" }
         r.close()
         assertEquals(2,requests.size)
         assertEquals(2,requests.last().messages.size)
@@ -153,7 +170,7 @@ class WorldLifeRuntimeTest {
         assertFalse(assessment.getJSONObject("current").has("sessionId"))
         assertFalse(assessment.getJSONObject("current").has("initial"))
         assertFalse(assessment.getJSONObject("current").toString().contains("availability"))
-        val messages=repo.get(repo.listSummaries().single().id)!!.messages
+        val messages=repo.get(session.id)!!.messages
         assertEquals(1,messages.count { it.content=="交接好了" })
         assertEquals(1,messages.count { it.content=="等我回去" })
         assertTrue(messages.none { "moodIntensity" in it.content })
@@ -255,12 +272,16 @@ class WorldLifeRuntimeTest {
         val original=File(CharacterRepository.charsDir(context),CharacterRepository.listNames(context).single()+".json")
         val copy=File(context.cacheDir,"second-life-card.json").apply { writeText(original.readText()) }
         CharacterRepository.import(context,Uri.fromFile(copy))
+        var requests=0
         val r=create(GenerationGateway { _,emit ->
+            requests++
             emit(GenerationEvent.ContentDelta("""{"messages":["今晚的事情处理完了"]}"""));StreamEnd()
         })
         r.foreground(true);elapse(480)
         waitFor { caughtUp() }
         r.close()
+        // 两个角色各合并成一次补齐请求，不再按联系机会逐条请求。
+        assertEquals(2,requests)
         val w=WorldLifeStore.read(context).worlds.values.single()
         assertEquals("2048-06-13",gameDate(w.now).toLocalDate().toString())
         assertEquals(2,w.actors.size)
@@ -328,9 +349,69 @@ class WorldLifeRuntimeTest {
         waitFor { caughtUp() };r.foreground(false)
         val after=WorldLifeStore.read(context).worlds.values.single().actors.values.single()
         assertEquals(0,requests)
+        assertTrue(after.relationship.waiting!=null)
         assertTrue(after.affinity<a.affinity)
         assertTrue(after.relationship.anxiety>0)
         assertEquals("irritated",after.relationship.stage)
+    }
+
+    @Test fun stateAssessmentFailureStillPublishesTheProseReply()=runBlocking {
+        var requests=0
+        val r=create(GenerationGateway { request,emit ->
+            requests++
+            // 真机上出现过：整理请求成功结束但正文为空，旧实现会因此拦下整条回复。
+            if(request.messages.first().content.contains("游戏状态记录器")) StreamEnd()
+            else {
+                emit(GenerationEvent.ContentDelta("交接好了，等我回去。"))
+                StreamEnd()
+            }
+        })
+        val w=WorldLifeStore.read(context).worlds.values.single();val a=w.actors.values.single()
+        val card=CharacterRepository.load(context,a.file)
+        val session=me.rerere.momoly.domain.chat.ChatSessionCoordinator(repo).forCharacter(card,a.file,a.name)
+        val input=ChatMessage("user","交接好了吗",ts=System.currentTimeMillis())
+        r.foreground(true)
+        r.submit(session.id,card,config.load().providers.single(),"test") { repo.putMessage(session.id,input);true }
+        waitFor { WorldLifeStore.read(context).worlds.values.single().actors.values.single().relationship.lastUserMessageTs==input.ts }
+        WorldLifeStore.world(context,w.name) { current -> val ready=current.actors.getValue(a.file)
+            current.copy(actors=current.actors+(a.file to ready.copy(inputReadyAt=0))) }
+        r.resume()
+        waitForMessage(session.id) { it.content=="等我回去" }
+        r.close()
+        assertEquals(2,requests)
+        assertFalse(r.status.value.paused)
+        assertNull(r.status.value.error)
+        val messages=repo.get(session.id)!!.messages
+        assertEquals(1,messages.count { it.content=="交接好了" })
+        assertEquals(1,messages.count { it.content=="等我回去" })
+    }
+
+    @Test fun proactiveMessageWithoutQuestionStillStartsWaiting()=runBlocking {
+        val r=create(GenerationGateway { _,emit ->
+            emit(GenerationEvent.ContentDelta("""{"messages":["我下班了"]}"""));StreamEnd()
+        })
+        val w=WorldLifeStore.read(context).worlds.values.single();val a=w.actors.values.single()
+        WorldLifeStore.world(context,w.name) { current -> current.copy(actors=current.actors+(a.file to a.copy(
+            schedule=listOf(LifeSchedule("free",0,1440,"休息",a.location)),nextContact=current.now))) }
+        r.foreground(true)
+        waitFor { WorldLifeStore.read(context).worlds.values.single().actors.values.single().relationship.waiting!=null }
+        r.foreground(false)
+        val waiting=WorldLifeStore.read(context).worlds.values.single().actors.values.single().relationship.waiting!!
+        assertEquals("我下班了",waiting.text)
+        assertTrue(waiting.unansweredContacts>=1)
+    }
+
+    @Test fun offlineCatchUpWithoutContactOpportunitiesDoesNotCallTheModel()=runBlocking {
+        var requests=0
+        val r=create(GenerationGateway { _,_ -> requests++;error("没有联系机会时不应请求模型") })
+        val w=WorldLifeStore.read(context).worlds.values.single();val a=w.actors.values.single()
+        WorldLifeStore.world(context,w.name) { current -> current.copy(actors=current.actors+(a.file to a.copy(
+            nextContact=current.target+7*1440*GAME_MINUTE))) }
+        r.foreground(true);elapse(6*60)
+        waitFor { caughtUp() };r.foreground(false)
+        assertEquals(0,requests)
+        assertEquals(clock,WorldLifeStore.read(context).worlds.values.single().now)
+        assertTrue(repo.listSummaries().all { repo.get(it.id)!!.messages.none { m -> m.role=="assistant" && WorldLifeStore.read(context).worlds.values.single().messageTimes.containsKey("${it.id}:${m.ts}") } })
     }
 
     @Test fun userReplyBypassesLowContactWillingnessAndKeepsExistingHurt()=runBlocking {
