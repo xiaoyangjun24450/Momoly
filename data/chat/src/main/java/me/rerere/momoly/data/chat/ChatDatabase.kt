@@ -145,6 +145,10 @@ internal interface ChatDao {
     """)
     suspend fun listSummaries(): List<SessionSummaryRow>
 
+    /** 只查最新一条用户消息时间；启动恢复不需要加载整段聊天历史。 */
+    @Query("SELECT MAX(ts) FROM messages WHERE sessionId = :sessionId AND role = 'user' AND isHidden = 0")
+    suspend fun lastUserMessageTimestamp(sessionId: String): Long?
+
     /** 每个会话最后一条非隐藏消息的正文；只取正文，不加载完整消息历史。 */
     @Query("""
         SELECT m.sessionId AS sessionId, m.content AS content

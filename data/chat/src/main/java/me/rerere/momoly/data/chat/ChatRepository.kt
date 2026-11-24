@@ -83,6 +83,9 @@ object ChatRepository {
         dao(context).getSession(id)?.toModel()
 
     /** Reads only session columns plus the message count. */
+    suspend fun lastUserMessageTimestamp(context: Context, sessionId: String): Long? =
+        dao(context).lastUserMessageTimestamp(sessionId)
+
     suspend fun getMetadata(context: Context, id: String): ChatSession? {
         val snapshot = dao(context).getSessionMetadataSnapshot(id) ?: return null
         return snapshot.row.toModel(snapshot.messageTimestamps)
